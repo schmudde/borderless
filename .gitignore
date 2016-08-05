@@ -1,0 +1,15 @@
+/target
+/classes
+/checkouts
+pom.xml
+pom.xml.asc
+*.jar
+*.class
+/.lein-*
+/.nrepl-port
+.hgignore
+.hg/
+overtone-cheat-sheet.pdf
+borderless-site/borderlessassets/bootstrap-3.2.0-dist
+/resources/audio/Test21
+/resources/audio/eh.aif

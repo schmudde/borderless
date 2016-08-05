@@ -1,7 +1,7 @@
 (ns borderless.core
   (:gen-class)
   (:use overtone.live))
-;  (:require [overtone.live]))
+;;  (:require [overtone.live]))
 ;; Why can't I use require?!?
 
 ;; (volume 20)
@@ -34,9 +34,44 @@
 
 (defn tremelo [] (sin-osc:kr 0.5))
 
-(definst drone [freq 1000]
+
+;; need to pass the ugen to something that can execute it and abstract it away to eventually add reverb
+
+(definst drone-aw [freq 100]
   "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
-  (saw (+ freq (sin-osc:kr 0.5))))
+  (* (env-gen (lin :sustain 2) 1 1 0 1 FREE)
+     (+ (resonz
+      (saw (+ freq (sin-osc:kr 0.5)))
+      570
+      0.1)
+     (resonz
+      (saw (+ freq (sin-osc:kr 0.5)))
+      840
+      0.1)
+     (resonz
+      (saw (+ freq (sin-osc:kr 0.5)))
+      2410
+      0.1))))
+
+
+(definst drone-eh [freq 100]
+  "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
+  (* (env-gen (lin :sustain 2) 1 1 0 1 FREE)
+     (+ (resonz
+      (saw (+ freq (sin-osc:kr 0.5)))
+      530
+      0.1)
+     (resonz
+      (saw (+ freq (sin-osc:kr 0.5)))
+      1840
+      0.1)
+     (resonz
+      (saw (+ freq (sin-osc:kr 0.5)))
+      2480
+      0.1))))
+
+
+
 
 ;; (defn ramp [tone ]
 ;;   (ctl drone :freq
