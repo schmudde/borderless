@@ -31,30 +31,40 @@
   []
   (demo (sin-osc)))
 
+
+(defn tremelo [] (sin-osc:kr 0.5))
+
+(definst drone [freq 1000]
+  "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
+  (saw (+ freq (sin-osc:kr 0.5))))
+
+;; (defn ramp [tone ]
+;;   (ctl drone :freq
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; OSC Server      ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
-(def PORT 12000)
+;; (def PORT 12000)
 
-(def server (osc-server PORT))
-(def client (osc-client "localhost" PORT))
+;; (def server (osc-server PORT))
+;; (def client (osc-client "localhost" PORT))
 
-(defn close-down! []
-  ;; remove handler
-  (osc-rm-handler server "/TSPS/personEntered")
+;; (defn close-down! []
+;;   ;; remove handler
+;;   (osc-rm-handler server "/TSPS/personEntered")
 
-  ;; stop listening and deallocate resources
-  (osc-close server))
+;;   ;; stop listening and deallocate resources
+;;   (osc-close server))
 
-(def noise-chooser
-  (fn [] (rand-nth noise)))
+;; (def noise-chooser
+;;   (fn [] (rand-nth noise)))
 
-(defn person-entered []
-  (osc-handle server "/TSPS/personEntered"
-              (fn [msg]
-                ((noise-chooser))
-                (println "Handler for /TSPS/personEntered: " msg))))
+;; (defn person-entered []
+;;   (osc-handle server "/TSPS/personEntered"
+;;               (fn [msg]
+;;                 ((noise-chooser))
+;;                 (println "Handler for /TSPS/personEntered: " msg))))
 
 (defn -main
   "I don't do a whole lot ... yet."
