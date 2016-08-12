@@ -51,11 +51,18 @@
       ((vowel-formant (+ freq (sin-osc:kr 0.5)) 1840 0.1))
       ((vowel-formant (+ freq (sin-osc:kr 0.5)) 2480 0.1)))))
 
+(definst drone-eh-sus [freq 35]
+  "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
+     (+
+      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 530 0.1))
+      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 1840 0.1))
+      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 2480 0.1))))
+
 (definst foo [freq 440] (sin-osc freq))
 
-(defn control-foo
+(defn control-sound
   [val]
  "Here's a fn which will take a val between 0 and 1, map it linearly to a value between 50 and 1000 and send the mapped value as the new frequency of foo:"
   (let [val (scale-range val 0 3000 300 2000)]
     (println val)
-   (ctl foo :freq val)))
+   (ctl drone-eh-sus :freq val)))
