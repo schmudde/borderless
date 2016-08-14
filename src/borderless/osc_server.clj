@@ -64,7 +64,7 @@
               (fn [msg]
                 (let [ id (nth (:args msg) 0)
                       age (nth (:args msg) 2)]
-                  (sound/control-sound age)))))
+                  (sound/control-sound id age)))))
 
 (defn person-leave []
     (osc-handle server "/TSPS/personWillLeave"
@@ -84,14 +84,3 @@
 (defn person []
   (sound/control-sound (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2))
 )
-
-;; Let's now override our boring "/1/fader6" handler which just prints out the incoming message to instead extract the slider's val and call control-foo: (osc-handle server "/1/fader6" (fn [msg] (control-foo (first (:args msg)))))
-
-(defn plus [x y] (+ x y))
-
-;; (defn person-entered []
-;;   (osc-handle server "/TSPS/personEntered"
-;;               (fn [msg]
-;;                                         ;((noise-chooser))
-;;                 (println msg)
-;;                 msg)))
