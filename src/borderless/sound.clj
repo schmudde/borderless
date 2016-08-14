@@ -1,7 +1,29 @@
 (ns borderless.sound
   (:use overtone.live))
 
-;; (volume 20)
+;; <justin_smith> ,(assoc {} 1 :a)
+;; <clojurebot> {1 :a}
+;; <justin_smith> ,(get {1 :a} 1)
+;; <clojurebot> :a
+;; <justin_smith> dschmudde: yeah, you usually don't even need to use the
+;;                hash-map function itself usually
+;; *** bengillies (~bengillie@bengillies.net) has quit: Ping timeout: 244 seconds
+;; <justin_smith> ,(assoc {} :a 0 :a 1 :a 3) ; "repeated usages of assoc"
+;; <clojurebot> {:a 3}
+
+
+(def person-sound (atom (assoc {} 1 :drone-eh)))
+
+(defn get-sound [pid]
+  (if (contains? @person-sound pid)
+    (eval (symbol "borderless.sound" (name (get @person-sound pid))))))
+
+(defn add-person-sound! [pid]
+  (reset! person-sound (assoc @person-sound pid :drone-eh-sus)))
+
+(defn remove-person-sound! [pid]
+  (if (contains? @person-sound pid)
+    (reset! person-sound (dissoc @person-sound pid))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Audio           ;;
@@ -47,22 +69,34 @@
   "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
   (* (env-gen (lin :sustain 2) 1 1 0 1 FREE)
      (+
-      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 530 0.1))
+      ((vowel-formant (+ freq (sin-osc:kr 2.5)) 530 0.1))
       ((vowel-formant (+ freq (sin-osc:kr 0.5)) 1840 0.1))
-      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 2480 0.1)))))
+      ((vowel-formant (+ freq (sin-osc:kr 1.5)) 2480 0.1)))))
 
-(definst drone-eh-sus [freq 35]
+(definst drone-eh-sus [freq 35 verb 1 kr-mul 25]
   "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
-     (+
-      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 530 0.1))
-      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 1840 0.1))
-      ((vowel-formant (+ freq (sin-osc:kr 0.5)) 2480 0.1))))
+  (let [synth-unit  (+
+                     ((vowel-formant (+ freq (sin-osc:kr (+ 2.5 kr-mul))) 530 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (+ 0.5 kr-mul))) 1840 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (+ 1.5 kr-mul))) 2480 0.1)))]
+    (out 0 (free-verb synth-unit verb verb verb))
+    (out 1 (free-verb synth-unit verb verb verb))))
 
 (definst foo [freq 440] (sin-osc freq))
+
+(defn start-sound! [pid]
+  (add-person-sound! pid)
+  ((get-sound pid)))
+
+(defn end-sound! [pid]
+  (if (contains? @person-sound pid)
+    (kill (get-sound pid))
+    (remove-person-sound! pid)))
 
 (defn control-sound
   [val]
  "Here's a fn which will take a val between 0 and 1, map it linearly to a value between 50 and 1000 and send the mapped value as the new frequency of foo:"
-  (let [val (scale-range val 0 3000 300 2000)]
+  (let [verb-val (scale-range val 0 1000 1 0)
+        kr-val (scale-range val 0 1000 25 0)]
     (println val)
-   (ctl drone-eh-sus :freq val)))
+   (ctl drone-eh-sus :verb verb-val :kr-mul kr-val)))
