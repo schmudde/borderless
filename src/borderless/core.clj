@@ -4,6 +4,8 @@
 
 
 (defn boot-server []
+  (osc/person-enter)
+  (osc/person-leave)
   (osc/person-updated))
 
 (defn -main

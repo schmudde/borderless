@@ -68,35 +68,35 @@
     synth-unit))
 
 
-(definst drone-aw-sus [freq 35 verb 1 kr-mul 25]
+(definst drone-aw-sus [freq 100 verb 1 kr-mul 25]
   (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 2.5 kr-mul))) 570 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 0.5 kr-mul))) 840 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 1.5 kr-mul))) 2410 0.1)))]
+                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 570 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 840 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2410 0.1)))]
     (out 0 (free-verb synth-unit verb verb verb))
     (out 1 (free-verb synth-unit verb verb verb))))
 
-(definst drone-eh-sus [freq 35 verb 1 kr-mul 25]
+(definst drone-eh-sus [freq 80 verb 1 kr-mul 25]
   (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 2.5 kr-mul))) 530 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 0.5 kr-mul))) 1840 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 1.5 kr-mul))) 2480 0.1)))]
+                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 530 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 1840 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2480 0.1)))]
     (out 0 (free-verb synth-unit verb verb verb))
     (out 1 (free-verb synth-unit verb verb verb))))
 
 (definst drone-oo-sus [freq 120 verb 1 kr-mul 25]
   (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 2.5 kr-mul))) 300 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 0.5 kr-mul))) 870 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 1.5 kr-mul))) 2240 0.1)))]
+                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 300 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 870 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2240 0.1)))]
     (out 0 (free-verb synth-unit verb verb verb))
     (out 1 (free-verb synth-unit verb verb verb))))
 
-(definst drone-ae-sus [freq 35 verb 1 kr-mul 25]
+(definst drone-ae-sus [freq 85 verb 1 kr-mul 25]
   (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 2.5 kr-mul))) 660 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 0.5 kr-mul))) 1720 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (+ 1.5 kr-mul))) 2410 0.1)))]
+                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 660 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 1720 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2410 0.1)))]
     (out 0 (free-verb synth-unit verb verb verb))
     (out 1 (free-verb synth-unit verb verb verb))))
 
@@ -124,5 +124,6 @@
  "Here's a fn which will take a val between 0 and 1, map it linearly to a value between 50 and 1000 and send the mapped value as the new frequency of foo:"
   (let [verb-val (scale-range val 0 1000 1 0)
         kr-val (scale-range val 0 1000 25 0)]
-    (println val)
-   (ctl (get-sound id) :verb verb-val :kr-mul kr-val)))
+    (ctl (get-sound id)
+         :verb verb-val
+         :kr-mul kr-val)))

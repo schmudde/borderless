@@ -69,16 +69,13 @@
 (defn person-leave []
     (osc-handle server "/TSPS/personWillLeave"
               (fn [msg]
-                (let [ id (nth (:args msg) 0)
-                      age (nth (:args msg) 2)]
-                  ;; TODO: end-sound call does not work!
+                (let [ id (nth (:args msg) 0)]
                   (sound/end-sound! id)))))
 
 (defn person-enter []
     (osc-handle server "/TSPS/personEntered"
               (fn [msg]
-                (let [ id (nth (:args msg) 0)
-                      age (nth (:args msg) 2)]
+                (let [ id (nth (:args msg) 0)]
                   (sound/start-sound! id)))))
 
 (defn person []
