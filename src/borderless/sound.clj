@@ -51,10 +51,10 @@
   (fn [] (sin-osc:kr 0.5)))
 
 (defn vowel-formant [freq eq-freq q]
-  (fn [] (resonz
-   (saw freq)
-   eq-freq
-   q)))
+  (fn [] (resonz (saw freq) eq-freq q)))
+
+;; (defn vowel-formant2 [freq eq-freq q]
+;;   (fn [] (resonz (saw freq) eq-freq q)))
 
 (definst drone-aw [freq 100 verb 0]
   "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
@@ -87,21 +87,37 @@
                               vol))
 
 
-(definst drone-aw-sus [freq 100 verb 1 kr-mul 25
+(definst drone-aw-sus [freq 300 verb 1 kr-mul 25 amp 1
                        attack 5.0 sustain 0.4 release 5.0 gate 1]
 
-  (let [synth-unit      (+
-                          ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 570 0.1))
-                          ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 840 0.1))
-                          ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2410 0.1)))
+  (let [synth-unit          (+
+                             ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 570 0.1))
+                             ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 840 0.1))
+                             ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2410 0.1)))
         synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
-        synth-unit-lpf  (rlpf synth-unit-env 600 0.6)]
+        synth-unit-hpf  (hpf synth-unit-env 900)
+        synth-unit-lpf  (rlpf synth-unit-hpf 600 0.6)]
 
     (out 0 (free-verb synth-unit-lpf verb verb verb))
     (out 1 (free-verb synth-unit-lpf verb verb verb))))
 
-(definst drone-eh-sus [freq 80 verb 1 kr-mul 25
-                       attack 5.0 sustain 0.4 release 5.0 gate 1]
+
+(definst drone-ae-sus [freq 100 verb 1 kr-mul 25 amp 0.75
+                       attack 35.0 sustain 0.4 release 15.0 gate 1]
+
+  (let [synth-unit  (+
+                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 270 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 2290 0.1))
+                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 3010 0.1)))
+        synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
+        synth-unit-hpf  (* amp (hpf synth-unit-env 600))
+        synth-unit-lpf  (rlpf synth-unit-hpf 8000 0.6)]
+
+    (out 0 (free-verb synth-unit-lpf verb verb verb))
+    (out 1 (free-verb synth-unit-lpf verb verb verb))))
+
+(definst drone-eh-sus [freq 80 verb 1 kr-mul 25 amp 1
+                       attack 5.0 sustain 0.4 release 15.0 gate 1]
   (let [synth-unit  (+
                      ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 530 0.1))
                      ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 1840 0.1))
@@ -112,26 +128,13 @@
     (out 0 (free-verb synth-unit-lpf verb verb verb))
     (out 1 (free-verb synth-unit-lpf verb verb verb))))
 
-(definst drone-oo-sus [freq 120 verb 1 kr-mul 25
-                       attack 5.0 sustain 0.4 release 5.0 gate 1]
+(definst drone-oo-sus [freq 120 verb 1 kr-mul 25 amp 1
+                       attack 5.0 sustain 0.4 release 15.0 gate 1]
 
   (let [synth-unit  (+
                      ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 300 0.1))
                      ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 870 0.1))
                      ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2240 0.1)))
-        synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
-        synth-unit-lpf  (rlpf synth-unit-env 600 0.6)]
-
-    (out 0 (free-verb synth-unit-lpf verb verb verb))
-    (out 1 (free-verb synth-unit-lpf verb verb verb))))
-
-(definst drone-ae-sus [freq 85 verb 1 kr-mul 25
-                       attack 5.0 sustain 0.4 release 5.0 gate 1]
-
-  (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 660 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 1720 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2410 0.1)))
         synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
         synth-unit-lpf  (rlpf synth-unit-env 600 0.6)]
 
@@ -146,9 +149,9 @@
   (let [number-of-people (count @person-sound)]
     (case number-of-people
       0 (add-person-sound! pid "drone-aw-sus")
-      1 (add-person-sound! pid "drone-eh-sus")
-      2 (add-person-sound! pid "drone-oo-sus")
-      3 (add-person-sound! pid "drone-ae-sus")
+      1 (add-person-sound! pid "drone-ae-sus")
+      2 (add-person-sound! pid "drone-eh-sus")
+      3 (add-person-sound! pid "drone-oo-sus")
       "atom full: four people are tracked")))
 
 (defn end-sound! [pid]
@@ -159,9 +162,10 @@
 
 (defn control-sound
   [id val]
- "Here's a fn which will take a val between 0 and 1, map it linearly to a value between 50 and 1000 and send the mapped value as the new frequency of foo:"
-  (let [verb-val (scale-range val 0 1000 1 0)
+  "Here's a fn which will take a val between 0 and 1, map it linearly to a value between 50 and 1000 and send the mapped value as the new frequency of foo:"
+  (let [verb-val (scale-range val 0 1000 1 0.3)
         kr-val (scale-range val 0 1000 25 0)]
-    (ctl (get-sound id)
-         :verb verb-val
-         :kr-mul kr-val)))
+    (if (contains? @person-sound id)
+      (ctl (get-sound id)
+           :verb verb-val
+           :kr-mul kr-val))))

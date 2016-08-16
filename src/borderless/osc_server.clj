@@ -36,8 +36,8 @@
 
 (def PORT 12000)
 
-;(def server (osc-server PORT))
-;(def client (osc-client "localhost" PORT))
+(def server (osc-server PORT))
+(def client (osc-client "localhost" PORT))
 
 (defn close-down! []
   ;; remove handler
