@@ -4,6 +4,7 @@
             [clojure.spec.gen :as gen]))
 
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utilities            ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -41,29 +42,6 @@
 ;; Audio           ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
-;; TESTING
-
-;; (demo 10
-;;       (rlpf (* 0.5 (saw [338 440]))
-;;             (mouse-x 10 10000)
-;;             (mouse-y 0.0001 0.9999))) ; cutoff frequency
-
-;; (definst saw-wave3 [freq 440 attack 5.0 sustain 0.4 release 5.0 vol 0.4 gate 1]
-;;                       (* (env-gen (asr attack sustain release) gate)
-;;                               (saw freq)
-;;                               vol))
-
-(defn tremelo-freq []
-  (fn [] (sin-osc:kr 0.5)))
-
-(s/fdef vowel-formant
-        :args (s/cat :freq number? :eq-freq number? :q number?)
-        :ret (s/fspec :args (s/cat :saw clojure.test/function? :freq number?)
-                      :ret number?))
-
-(defn vowel-formant [freq eq-freq q]
-  (fn [] (resonz (saw freq) eq-freq q)))
-
 ;; VCA, VCO, and FX
 (s/def ::vca (s/and number? #((control-range 0.4 1) %) ))
 (s/def ::reverb (s/and integer? #((control-range 0 1000) %)))
@@ -88,31 +66,35 @@
    ::release 5.0
    ::gate 1})
 
-;; (definst drone-aw [freq 100 verb 0]
-;;   (let [tremolo-freq (+ freq ((tremelo-freq)))
-;;         synth-unit   (* (env-gen (lin :attack 10 :sustain 5 :release 5) 1 1 0 1 FREE)
-;;                         (+
-;;                          ((vowel-formant tremelo-freq 570 0.1))
-;;                          ((vowel-formant tremelo-freq 840 0.1))
-;;                          ((vowel-formant tremelo-freq 2410 0.1))))
-;;         synth-unit-lpf (rlpf (* 0.5 synth-unit)
-;;                                        (mouse-x 10 10000)
-;;                                        (mouse-y 0.0001 0.9999))]
-;;     (out 0 (free-verb synth-unit-lpf verb verb verb))
-;;     (out 1 (free-verb synth-unit-lpf verb verb verb))))
+(defn tremelo-freq []
+  (fn [] (sin-osc:kr 0.5)))
 
+(s/fdef vowel-formant
+        :args (s/cat :freq number? :eq-freq number? :q number?)
+        :ret (s/fspec :args (s/cat :saw clojure.test/function? :freq number?)
+                      :ret number?))
+
+(defn vowel-formant [freq eq-freq q]
+  (fn [] (resonz (saw freq) eq-freq q)))
+
+(defn synth-unit-layered [freq eq-freq q kr-mul]
+  (let [[freq-a freq-b freq-c] eq-freq]
+    (overtone.sc.ugen-collide/+
+     ((vowel-formant (overtone.sc.ugen-collide/+ freq (sin-osc:kr (* 2.5 kr-mul))) freq-a q))
+     ((vowel-formant (overtone.sc.ugen-collide/+ freq (sin-osc:kr (* 0.5 kr-mul))) freq-b q))
+     ((vowel-formant (overtone.sc.ugen-collide/+ freq (sin-osc:kr (* 1.5 kr-mul))) freq-c q)))))
 
 (definst drone-eh
-  "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
   [freq 100]
-  (let [tremolo-freq (+ freq ((tremelo-freq)))
-        synth-unit (* (env-gen (lin :sustain 2) 1 1 0 1 FREE)
-                      (+
-                       ((vowel-formant tremolo-freq 530 0.1))
-                       ((vowel-formant tremolo-freq 1840 0.1))
-                       ((vowel-formant tremolo-freq 2480 0.1))))]
-    synth-unit))
+  (let [eq-freq      [530 1840 2480]
+        q            0.1
+        synth-unit (* (env-gen (lin :sustain 12) 1 1 0 1 FREE)
+                      (synth-unit-layered freq eq-freq q 0.5))
+        synth-unit-lpf (rlpf (* 0.5 synth-unit)
+                                       (mouse-x 10 10000)
+                                       (mouse-y 0.0001 0.9999))]
 
+    synth-unit-lpf))
 
 (definst drone-aw-sus [freq 300
                        amp (synth-defaults ::vca)
@@ -122,10 +104,9 @@
                        sustain (synth-defaults ::sustain)
                        release (synth-defaults ::release)
                        gate (synth-defaults ::gate)]
-  (let [synth-unit          (+
-                             ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 570 0.1))
-                             ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 840 0.1))
-                             ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2410 0.1)))
+  (let [eq-freq      [570 840 2410]
+        q            0.1
+        synth-unit (synth-unit-layered freq eq-freq q 0.5)
         synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
         synth-unit-hpf  (hpf synth-unit-env 900)
         synth-unit-lpf  (* amp (rlpf synth-unit-hpf 600 0.6))]
@@ -137,10 +118,9 @@
 (definst drone-ae-sus [freq 100 verb 1 kr-mul 25 amp 0.75
                        attack 35.0 sustain 0.4 release 15.0 gate 1]
 
-  (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 270 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 2290 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 3010 0.1)))
+  (let [eq-freq      [270 2290 3010]
+        q            0.1
+        synth-unit (synth-unit-layered freq eq-freq q 0.5)
         synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
         synth-unit-hpf  (* amp (hpf synth-unit-env 600))
         synth-unit-lpf  (rlpf synth-unit-hpf 8000 0.6)]
@@ -150,10 +130,9 @@
 
 (definst drone-eh-sus [freq 80 verb 1 kr-mul 25 amp 1
                        attack 5.0 sustain 0.4 release 15.0 gate 1]
-  (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 530 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 1840 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2480 0.1)))
+  (let [eq-freq      [530 1840 2480]
+        q            0.1
+        synth-unit (synth-unit-layered freq eq-freq q 0.5)
         synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
         synth-unit-lpf  (rlpf synth-unit-env 750 0.9)]
 
@@ -163,10 +142,9 @@
 (definst drone-oo-sus [freq 120 verb 1 kr-mul 25 amp 1
                        attack 5.0 sustain 0.4 release 15.0 gate 1]
 
-  (let [synth-unit  (+
-                     ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 300 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 870 0.1))
-                     ((vowel-formant (+ freq (sin-osc:kr (* 1.5 kr-mul))) 2240 0.1)))
+  (let [eq-freq      [300 870 2240]
+        q            0.1
+        synth-unit (synth-unit-layered freq eq-freq q 0.5)
         synth-unit-env  (* (env-gen (asr attack sustain release) gate) synth-unit)
         synth-unit-lpf  (rlpf synth-unit-env 600 0.6)]
 
