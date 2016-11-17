@@ -3,14 +3,9 @@
   :url "http://beyondthefra.me/bordrless"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.8.0"]
-                 [overtone "0.10.1"]
-                 [org.clojure/clojurescript "1.8.40"]]
-  :cljsbuild {:source-path "src"
-                           :compiler {:output-dir "resources/public/cljs"
-                                      :output-to "resources/public/cljs/bootstrap.js"
-                                      :optimizations :simple
-                                      :pretty-print true}}
+  :dependencies [[org.clojure/clojure "1.9.0-alpha4"] ;; alpha 5+ does not seem to work
+                 [overtone "0.10.1"]]
   :main ^:skip-aot borderless.core
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all}})
+  :profiles {:dev {:dependencies [[org.clojure/test.check "0.9.0"]]}
+             :uberjar {:aot :all}})

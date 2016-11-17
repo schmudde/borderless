@@ -1,12 +1,26 @@
 (ns borderless.sound
-  (:use overtone.live))
+  (:use overtone.live)
+  (:require [clojure.spec :as s]
+            [clojure.spec.gen :as gen]))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Utilities            ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn control-range
+  "I return a function that will return true/false if a value is within a min/max range."
+  [min max]
+  (fn [value]
+    (and (>= value min) (<= value max)) ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Person/Sound Mapping ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn inst-ns [instrument]
+(defn inst-ns
   "This is the instrument name with full namespace qualifiers. Useful becuase the 'sound name' is really the name of the 'definst' macro created by Overtone."
+    [instrument]
     (eval (symbol "borderless.sound" instrument)))
 
 (def person-sound (atom {}))
@@ -28,44 +42,53 @@
 ;;;;;;;;;;;;;;;;;;;;;
 
 ;; TESTING
-(definst foo [freq 440] (sin-osc freq))
-
-(def eh (sample "~/work/code/borderless/resources/audio/eh.aif"))
-(def eh-buf (load-sample "resources/audio/eh.aif"))
-
-(def noise-1 (sample "~/work/code/borderless/resources/audio/Test21-1.aif"))
 
 ;; (demo 10
 ;;       (rlpf (* 0.5 (saw [338 440]))
 ;;             (mouse-x 10 10000)
 ;;             (mouse-y 0.0001 0.9999))) ; cutoff frequency
 
-(definst saw-wave3 [freq 440 attack 5.0 sustain 0.4 release 5.0 vol 0.4 gate 1]
-                      (* (env-gen (asr attack sustain release) gate)
-                              (saw freq)
-                              vol))
-;; SYNTHS
+;; (definst saw-wave3 [freq 440 attack 5.0 sustain 0.4 release 5.0 vol 0.4 gate 1]
+;;                       (* (env-gen (asr attack sustain release) gate)
+;;                               (saw freq)
+;;                               vol))
 
 (defn tremelo-freq []
   (fn [] (sin-osc:kr 0.5)))
 
+(s/fdef vowel-formant
+        :args (s/cat :freq number? :eq-freq number? :q number?)
+        :ret (s/fspec :args (s/cat :saw clojure.test/function? :freq number?)
+                      :ret number?))
+
 (defn vowel-formant [freq eq-freq q]
   (fn [] (resonz (saw freq) eq-freq q)))
 
-;; (defn vowel-formant2 [freq eq-freq q]
-;;   (fn [] (resonz (saw freq) eq-freq q)))
+;; VCA, VCO, and FX
+(s/def ::vca (s/and number? #((control-range 0.4 1) %) ))
+(s/def ::reverb (s/and integer? #((control-range 0 1000) %)))
+(s/def ::vco (s/and integer? #((control-range 0 25) %)))
 
+;; envelope
+(s/def ::attack (s/and number? #((control-range 0 10) %)))
+(s/def ::sustain (s/and number? #((control-range 0 1) %)))
+(s/def ::release (s/and number? #((control-range 0 10) %)))
+(s/def ::gate (s/and integer? #((control-range 0 1) %)))
 
-;; (defsynth voice [tremelo-freq:kr 2000]
-  ;; (* (env-gen (lin :attack 10 :sustain 5 :release 5) 1 1 0 1 FREE)
-  ;;    (+
-  ;;     ((vowel-formant tremelo-freq 570 0.1))
-  ;;     ((vowel-formant tremelo-freq 840 0.1))
-  ;;     ((vowel-formant tremelo-freq 2410 0.1)))))
+(s/def ::sound-params
+  (s/keys :req [::vca ::reverb ::vco]
+          :opt [::attack ::sustain ::release ::gate]))
 
+(def synth-defaults
+  {::vca 1
+   ::reverb 1
+   ::vco 25
+   ::attack 5.0
+   ::sustain 0.4
+   ::release 5.0
+   ::gate 1})
 
 ;; (definst drone-aw [freq 100 verb 0]
-;;   "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
 ;;   (let [tremolo-freq (+ freq ((tremelo-freq)))
 ;;         synth-unit   (* (env-gen (lin :attack 10 :sustain 5 :release 5) 1 1 0 1 FREE)
 ;;                         (+
@@ -79,7 +102,9 @@
 ;;     (out 1 (free-verb synth-unit-lpf verb verb verb))))
 
 
-(definst drone-eh [freq 100]
+(definst drone-eh
+  "Inst calls the synth macro which takes a synthesizer definition form. The saw function represents a unit-generator, or ugen. These are the basic building blocks for creating synthesizers, and they can generate or process both audio and control signals (odoc saw)"
+  [freq 100]
   (let [tremolo-freq (+ freq ((tremelo-freq)))
         synth-unit (* (env-gen (lin :sustain 2) 1 1 0 1 FREE)
                       (+
@@ -89,9 +114,14 @@
     synth-unit))
 
 
-(definst drone-aw-sus [freq 300 verb 1 kr-mul 25 amp 1
-                       attack 5.0 sustain 0.4 release 5.0 gate 1]
-
+(definst drone-aw-sus [freq 300
+                       amp (synth-defaults ::vca)
+                       verb (synth-defaults ::reverb)
+                       kr-mul (synth-defaults ::vco)
+                       attack (synth-defaults ::attack)
+                       sustain (synth-defaults ::sustain)
+                       release (synth-defaults ::release)
+                       gate (synth-defaults ::gate)]
   (let [synth-unit          (+
                              ((vowel-formant (+ freq (sin-osc:kr (* 2.5 kr-mul))) 570 0.1))
                              ((vowel-formant (+ freq (sin-osc:kr (* 0.5 kr-mul))) 840 0.1))
@@ -143,8 +173,9 @@
     (out 0 (free-verb synth-unit-lpf verb verb verb))
     (out 1 (free-verb synth-unit-lpf verb verb verb))))
 
-(defn amplitude-mul [age]
+(defn amplitude-mul
   "This is a quick 'n dirty function that lowers the amplitude over time. It was written to compensate the removal of reverb over time and the increase in the perceived loudness of a sound."
+  [age]
   (cond
     (< age 600) 1
     (< age 750) 0.7
@@ -169,13 +200,16 @@
       (end-sound! (ffirst current-people))
       (reset-atom (rest current-people)))))
 
-(defn start-sound! [pid]
+(defn start-sound!
   "Start the sound and add it to the atom. Reset that atom every xx number of people."
+  [pid]
   (let [number-of-people (count @person-sound)
-        reset-val        50]
+        reset-val        40]
 
-  (if (= (rem pid reset-val) 0)
-    (reset-atom @person-sound))
+    (if (= (rem pid reset-val) 0)
+      (do
+        (clear)
+    (reset-atom @person-sound)))
 
   (case number-of-people
     0 (add-person-sound! pid "drone-aw-sus")
@@ -186,8 +220,8 @@
 
 
 (defn control-sound
-  [pid val]
   "Here's a fn which will take a val between 0 and 1, map it linearly to a value between 50 and 1000 and send the mapped value as the new frequency of foo:"
+  [pid val]
   (let [verb-val  (scale-range val 0 1000 1 0.3)
         kr-val    (scale-range val 0 1000 25 0)
         amp-val   (amplitude-mul val)]
