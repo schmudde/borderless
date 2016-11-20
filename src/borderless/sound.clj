@@ -4,7 +4,6 @@
             [clojure.spec.gen :as gen]))
 
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utilities            ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -42,6 +41,12 @@
 ;; spec            ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
+(s/def ::vca-range (s/double-in :min 0.4 :max 1.0))
+(s/def ::reverb-range (s/int-in 0 1000))
+(s/def ::q-range (s/double-in :min 0.1 :max 1.0))
+
+(s/def ::frequency (s/and number? #((control-range 0 20000) %) ))
+
 ;; VCA, VCO, and FX
 (s/def ::vca (s/and number? #((control-range 0.4 1) %) ))
 (s/def ::reverb (s/and integer? #((control-range 0 1000) %)))
@@ -67,9 +72,10 @@
    ::gate 1})
 
 (s/fdef vowel-formant
-        :args (s/cat :freq number? :eq-freq number? :q number?)
-        :ret (s/fspec :args (s/cat :saw clojure.test/function? :freq number?)
-                      :ret number?))
+        :args (s/cat :freq ::frequency :eq-freq ::frequency :q ::q-range)
+        :ret (s/fspec :args int?
+                      :ret clojure.test/function?))
+
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Audio           ;;
