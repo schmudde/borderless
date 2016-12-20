@@ -47,7 +47,7 @@
   (osc-close server))
 
 
-(defn person-updated []
+(defn person-updated
   "(osc-handle server '/test' (fn [msg] (println 'MSG: ' msg)))
 
     Register a handler function for the /test OSC address.
@@ -59,7 +59,7 @@
     {:path /TSPS/personEntered/,
      :type-tag iiifffffffffffffffff,
      :args (409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host localhost, :src-port 49551}"
-
+  []
   (osc-handle server "/TSPS/personUpdated"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)

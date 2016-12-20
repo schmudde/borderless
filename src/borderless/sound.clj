@@ -1,7 +1,8 @@
 (ns borderless.sound
   (:use overtone.live)
   (:require [clojure.spec :as s]
-            [clojure.spec.gen :as gen]))
+            [clojure.spec.gen :as gen]
+            [clojure.test]))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -43,9 +44,14 @@
 
 (s/def ::vca-range (s/double-in :min 0.4 :max 1.0))
 (s/def ::reverb-range (s/int-in 0 1000))
+(s/def ::vco-range (s/int-in 0 25))
 (s/def ::q-range (s/double-in :min 0.1 :max 1.0))
+(s/def ::frequency-range (s/int-in 20 20000))
 
-(s/def ::frequency (s/and number? #((control-range 0 20000) %) ))
+
+;; TODO: What about frequency vs. frequency-range, vca vs. vca-range, etc...?
+
+(s/def ::frequency (s/and number? #((control-range 20 20000) %) ))
 
 ;; VCA, VCO, and FX
 (s/def ::vca (s/and number? #((control-range 0.4 1) %) ))
@@ -71,11 +77,20 @@
    ::release 5.0
    ::gate 1})
 
+(defn synth-generator []
+  [(last (gen/sample (s/gen ::vca-range) 20))
+   (last (gen/sample (s/gen ::reverb-range) 20))
+   (last (gen/sample (s/gen ::vco-range) 20))])
+
+(defn synth-hacker! [number]
+  (let [mucker (synth-generator)]
+    (println mucker)
+    (ctl number :verb 0 :kr-mul (nth mucker 2))))
+
 (s/fdef vowel-formant
         :args (s/cat :freq ::frequency :eq-freq ::frequency :q ::q-range)
-        :ret (s/fspec :args int?
+        :ret (s/fspec :args integer?
                       :ret clojure.test/function?))
-
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Audio           ;;
@@ -224,7 +239,9 @@
     (if (= (rem pid reset-val) 0)
       (do
         (clear)
-    (reset-atom @person-sound)))
+        (reset-atom @person-sound)))
+
+    (println "Someone Entered")
 
   (case number-of-people
     0 (add-person-sound! pid "drone-aw-sus")
