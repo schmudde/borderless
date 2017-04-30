@@ -6,6 +6,9 @@
 ;; OSC Server      ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
+;; https://github.com/overtone/overtone
+;; https://github.com/overtone/osc-clj
+
 ;; TSPS sends messages each time an Event occurs
 ;; address:
 ;; /TSPS/personEntered  OR
@@ -34,6 +37,13 @@
 ;; 19: opticalFlowVectorAccumulation.y;
 ;; 20+ : contours (if enabled)
 
+
+;; borderless.osc-server> (osc-handle server "/foo/bar" (fn [msg] (println "Handler for /foo/bar: " msg)))
+;;     #<osc-server: n-listeners[0] n-handlers[4] port[12000] open?[true]>
+;; borderless.osc-server> (osc-send client "/foo/bar" "lalal")
+;;     nil
+;;     Handler for /foo/bar:  {:path /foo/bar, :type-tag s, :args (lalal), :src-host localhost, :src-port 61015}
+
 (def PORT 12000)
 
 (def server (osc-server PORT))
@@ -48,7 +58,7 @@
 
 
 (defn person-updated
-  "(osc-handle server '/test' (fn [msg] (println 'MSG: ' msg)))
+  " (osc-handle server '/test' (fn [msg] (println 'MSG: ' msg)))
 
     Register a handler function for the /test OSC address.
     The handler takes a message map with the following keys:

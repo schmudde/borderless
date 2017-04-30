@@ -211,11 +211,11 @@
   "This is a quick 'n dirty function that lowers the amplitude over time. It was written to compensate the removal of reverb over time and the increase in the perceived loudness of a sound."
   [age]
   (cond
-    (< age 600) 1
-    (< age 750) 0.7
-    (< age 900) 0.6
-    (< age 1000) 0.5
-    (>= age 1000) 0.4
+    (< age 600) 10
+    (< age 750) 1.7
+    (< age 900) 1.6
+    (< age 1000) 1.5
+    (>= age 1000) 1.4
     :else 1))
 
 (defn end-sound! [pid]
