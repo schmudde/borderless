@@ -1,9 +1,11 @@
 (ns borderless.sound
-  (:use overtone.live)
-  (:require [clojure.spec :as s]
+  (:require [overtone.live :as o]
+            [overtone.live :refer :all] ;; TODO: remove this!
+            [clojure.spec :as s]
             [clojure.spec.gen :as gen]
             [clojure.test]))
 
+;; TODO: I think you'll find that none of the instruments depend on overtone.live. It is simply a convenient way to start up overtone. If you start the external server, then use overtone.core, you'll have all the same capability.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utilities            ;;
@@ -85,7 +87,7 @@
 (defn synth-hacker! [number]
   (let [mucker (synth-generator)]
     (println mucker)
-    (ctl number :verb 0 :kr-mul (nth mucker 2))))
+    (o/ctl number :verb 0 :kr-mul (nth mucker 2))))
 
 (s/fdef vowel-formant
         :args (s/cat :freq ::frequency :eq-freq ::frequency :q ::q-range)
@@ -99,25 +101,25 @@
 (defn vowel-formant
   "I EQ a narrow Q on a given frequency to shape a saw waveform of a certain pitch."
   [pitch eq-freq q]
-  (fn [] (resonz (saw pitch) eq-freq q)))
+  (fn [] (o/resonz (o/saw pitch) eq-freq q)))
 
 (defn synth-unit-layered [freq eq-freq q kr-mul]
   (let [[freq-a freq-b freq-c] eq-freq]
     (overtone.sc.ugen-collide/+
-     ((vowel-formant (overtone.sc.ugen-collide/+ freq (sin-osc:kr (* 2.5 kr-mul))) freq-a q))
-     ((vowel-formant (overtone.sc.ugen-collide/+ freq (sin-osc:kr (* 0.5 kr-mul))) freq-b q))
-     ((vowel-formant (overtone.sc.ugen-collide/+ freq (sin-osc:kr (* 1.5 kr-mul))) freq-c q)))))
+     ((vowel-formant (overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* 2.5 kr-mul))) freq-a q))
+     ((vowel-formant (overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* 0.5 kr-mul))) freq-b q))
+     ((vowel-formant (overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* 1.5 kr-mul))) freq-c q)))))
 
-(definst drone-eh
+(o/definst drone-eh
   "a testing instrument, not used in runtime"
   [freq 100]
   (let [eq-freq      [530 1840 2480]
         q            0.1
-        synth-unit (* (env-gen (lin :sustain 12) 1 1 0 1 FREE)
+        synth-unit (overtone.sc.ugen-collide/* (o/env-gen (o/lin :sustain 12) 1 1 0 1 o/FREE)
                       (synth-unit-layered freq eq-freq q 0.5))
-        synth-unit-lpf (rlpf (* 0.5 synth-unit)
-                                       (mouse-x 10 10000)
-                                       (mouse-y 0.0001 0.9999))]
+        synth-unit-lpf (o/rlpf (overtone.sc.ugen-collide/* 0.5 synth-unit)
+                                       (o/mouse-x 10 10000)
+                                       (o/mouse-y 0.0001 0.9999))]
     synth-unit-lpf))
 
 (defn synth-filter-chain
@@ -129,13 +131,13 @@
         [hpf-freq rlpf-freq rlpf-q] hpf-rlpf]
 
     (-> synth-unit
-        (overtone.sc.ugen-collide/* (env-gen (asr attack sustain release) gate))
-        (hpf hpf-freq)
-        (rlpf rlpf-freq rlpf-q)
+        (overtone.sc.ugen-collide/* (o/env-gen (o/asr attack sustain release) gate))
+        (o/hpf hpf-freq)
+        (o/rlpf rlpf-freq rlpf-q)
         (overtone.sc.ugen-collide/* amp)
-        (free-verb verb verb verb))))
+        (o/free-verb verb verb verb))))
 
-(definst drone-aw-sus
+(o/definst drone-aw-sus
   "I make the 'aw' vowel sound at a given frequency.
    I start/stop with the gate set to 1 or 0."
   [freq   300
@@ -152,7 +154,7 @@
 
         (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
 
-(definst drone-ae-sus
+(o/definst drone-ae-sus
   "I make the 'ae' vowel sound at a given frequency.
    I start/stop with the gate set to 1 or 0."
   [freq   100
@@ -169,7 +171,7 @@
 
     (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
 
-(definst drone-eh-sus
+(o/definst drone-eh-sus
   "I make the 'eh' vowel sound at a given frequency.
    I start/stop with the gate set to 1 or 0."
   [freq   80
@@ -186,7 +188,7 @@
 
     (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
 
-(definst drone-oo-sus
+(o/definst drone-oo-sus
   "I make the 'oo' vowel sound at a given frequency.
    I start/stop with the gate set to 1 or 0."
   [freq   120
@@ -219,16 +221,10 @@
     :else 1))
 
 (defn end-sound! [pid]
-  (if (contains? @person-sound pid)
-    (do
-      (ctl (get-sound pid) :gate 0)
-      (remove-person-sound! pid))))
+  (when (contains? (deref person-sound) pid) (o/ctl (get-sound pid) :gate 0) (remove-person-sound! pid)))
 
 (defn reset-atom [current-people]
-  (if (seq current-people)
-    (do
-      (end-sound! (ffirst current-people))
-      (reset-atom (rest current-people)))))
+  (when (seq current-people) (end-sound! (ffirst current-people)) (reset-atom (rest current-people))))
 
 (defn start-sound!
   "Start the sound and add it to the atom. Reset that atom every xx number of people."
@@ -236,10 +232,7 @@
   (let [number-of-people (count @person-sound)
         reset-val        40]
 
-    (if (= (rem pid reset-val) 0)
-      (do
-        (clear)
-        (reset-atom @person-sound)))
+    (when (zero? (rem pid reset-val)) (o/clear) (reset-atom (deref person-sound)))
 
     (println "Someone Entered")
 
@@ -253,11 +246,11 @@
 (defn control-sound
   "I take a val between 0 and 1000+, map the value, and send it to the instrument's controller."
   [pid val]
-  (let [verb-val  (scale-range val 0 1000 1 0.3)
-        kr-val    (scale-range val 0 1000 25 0)
+  (let [verb-val  (o/scale-range val 0 1000 1 0.3)
+        kr-val    (o/scale-range val 0 1000 25 0)
         amp-val   (amplitude-mul val)]
     (if (contains? @person-sound pid)
-      (ctl (get-sound pid)
+      (o/ctl (get-sound pid)
            :amp amp-val
            :verb verb-val
            :kr-mul kr-val))))

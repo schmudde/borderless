@@ -1,6 +1,6 @@
 (ns borderless.osc-server
-  (:use overtone.osc)
-  (:require [borderless.sound :as sound]))
+  (:require [overtone.osc :as osc]
+            [borderless.sound :as sound]))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; OSC Server      ;;
@@ -46,15 +46,15 @@
 
 (def PORT 12000)
 
-(def server (osc-server PORT))
-(def client (osc-client "localhost" PORT))
+(def server (osc/osc-server PORT))
+(def client (osc/osc-client "localhost" PORT))
 
 (defn close-down! []
   ;; remove handler
-  (osc-rm-handler server "/TSPS/personEntered")
+  (osc/osc-rm-handler server "/TSPS/personEntered")
 
   ;; stop listening and deallocate resources
-  (osc-close server))
+  (osc/osc-close server))
 
 
 (defn person-updated
@@ -70,24 +70,24 @@
      :type-tag iiifffffffffffffffff,
      :args (409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host localhost, :src-port 49551}"
   []
-  (osc-handle server "/TSPS/personUpdated"
+  (osc/osc-handle server "/TSPS/personUpdated"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)
                       age (nth (:args msg) 2)]
                   (sound/control-sound id age)))))
 
 (defn person-leave []
-    (osc-handle server "/TSPS/personWillLeave"
+    (osc/osc-handle server "/TSPS/personWillLeave"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)]
                   (sound/end-sound! id)))))
 
 (defn person-enter []
-    (osc-handle server "/TSPS/personEntered"
+    (osc/osc-handle server "/TSPS/personEntered"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)]
                   (sound/start-sound! id)))))
 
 (defn person []
-  (sound/control-sound (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2))
+  (sound/control-sound (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2) 1)
 )

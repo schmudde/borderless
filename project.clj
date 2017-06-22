@@ -5,16 +5,14 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
-                 [overtone "LATEST"]
-                 [environ "1.0.3"]]
+                 [environ "1.0.3"]
+                 [overtone "0.10.1"]]
   :plugins [[lein-environ "1.0.3"]
-            [lein-git-deps "0.0.1-SNAPSHOT"]]
-  :git-dependencies [["https://github.com/overtone/overtone.git"]]
-
+            [lein-kibit "0.1.5"]]
   :jvm-opts ^:replace []
   :min-lein-version "2.6.1"
 
-  :source-paths ["src" ".lein-git-deps/overtone/src"]
+  :source-paths ["src"]
   :test-paths ["test/clj"]
   :clean-targets ^{:protect false} [:target-path :compile-path "resources/public/js"]
   :uberjar-name "borderless.jar"
