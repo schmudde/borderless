@@ -1,14 +1,12 @@
 (ns borderless.core
   (:gen-class)
-  (:require [borderless.osc-server :as osc]))
+  (:require [overtone.core :refer [boot-external-server]]))
 
-(defn boot-server []
-    (println "booting server")
-    (osc/person-enter)
-    (osc/person-leave)
-    (osc/person-updated))
+(defn boot-server! []
+  (boot-external-server)
+  (println "booting server")
+  (require '[borderless.osc-server :as osc]))
 
 (defn -main
   [& args]
-  (println "We are ready__")
-  (boot-server))
+  (boot-server!))

@@ -38,23 +38,18 @@
 ;; 20+ : contours (if enabled)
 
 
-;; borderless.osc-server> (osc-handle server "/foo/bar" (fn [msg] (println "Handler for /foo/bar: " msg)))
+;; borderless.osc-server> (osc/osc-handle server "/foo/bar" (fn [msg] (println "Handler for /foo/bar: " msg)))
 ;;     #<osc-server: n-listeners[0] n-handlers[4] port[12000] open?[true]>
-;; borderless.osc-server> (osc-send client "/foo/bar" "lalal")
+;; borderless.osc-server> (osc/osc-send client "/foo/bar" "lalal")
 ;;     nil
 ;;     Handler for /foo/bar:  {:path /foo/bar, :type-tag s, :args (lalal), :src-host localhost, :src-port 61015}
+;; borderless.osc-server> (osc/osc-send client "/foo/bar" "409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0")
+;;     => Handler for /foo/bar:  {:path /foo/bar, :type-tag s, :args (409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host localhost, :src-port 56319}
 
 (def PORT 12000)
 
 (def server (osc/osc-server PORT))
 (def client (osc/osc-client "localhost" PORT))
-
-(defn close-down! []
-  ;; remove handler
-  (osc/osc-rm-handler server "/TSPS/personEntered")
-
-  ;; stop listening and deallocate resources
-  (osc/osc-close server))
 
 
 (defn person-updated
@@ -91,3 +86,26 @@
 (defn person []
   (sound/control-sound (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2) 1)
 )
+
+(def x {:path "/TSPS/personEntered/",
+        :type-tag "iiifffffffffffffffff",
+        :args '(409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host "localhost", :src-port 49551})
+
+(defn open-server! []
+  ;; create handlers
+  (person-updated)
+  (person-leave)
+  (person-enter))
+
+(defn close-down! []
+  ;; remove handler
+  (osc/osc-rm-handler server "/TSPS/personEntered")
+
+  ;; stop listening and deallocate resources
+  (osc/osc-close server))
+
+;;;;;;;;;;;;;;;;;;;;;
+;; Start Server    ;;
+;;;;;;;;;;;;;;;;;;;;;
+
+(open-server!)
