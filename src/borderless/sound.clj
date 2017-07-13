@@ -124,7 +124,7 @@
                               q          (synth-drone ::q)
                               synth-unit (synth-unit-layered freq eq-freq q mod-rate)]
 
-                         (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))))))
+                         (synth-filter-chain synth-unit amp verb gate hpf-rlpf mod-rate)))))))
 
 (defn test-frequency
   "This is the most basic use of o/synth"
