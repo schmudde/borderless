@@ -221,7 +221,9 @@
     :else 1))
 
 (defn end-sound! [pid]
-  (when (contains? (deref person-sound) pid) (o/ctl (get-sound pid) :gate 0) (remove-person-sound! pid)))
+  (when (contains? (deref person-sound) pid) (o/ctl (get-sound pid) :gate 0) 
+  	(println "Left: " pid)
+  	(remove-person-sound! pid)))
 
 (defn reset-atom [current-people]
   (when (seq current-people) (end-sound! (ffirst current-people)) (reset-atom (rest current-people))))
@@ -234,7 +236,7 @@
 
     (when (zero? (rem pid reset-val)) (o/clear) (reset-atom (deref person-sound)))
 
-    (println "Someone Entered")
+    (println pid " entered")
 
   (case number-of-people
     0 (add-person-sound! pid "drone-aw-sus")
