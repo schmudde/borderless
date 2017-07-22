@@ -29,3 +29,5 @@
               :hooks []
               :omit-source true
               :aot :all}})
+
+;; TODO: Currently on Overtone 0.10.1 because of the issue here: https://github.com/overtone/overtone/commit/320f97093d5e2861eaf36d6ef0dcb8a3a5fc6a25

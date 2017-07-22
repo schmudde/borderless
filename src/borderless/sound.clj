@@ -1,11 +1,8 @@
 (ns borderless.sound
-  (:require [overtone.live :as o]
-            [overtone.live :refer :all] ;; TODO: remove this!
+  (:require [overtone.core :as o :refer [out hold FREE]]
             [clojure.spec :as s]
             [clojure.spec.gen :as gen]
             [clojure.test]))
-
-;; TODO: I think you'll find that none of the instruments depend on overtone.live. It is simply a convenient way to start up overtone. If you start the external server, then use overtone.core, you'll have all the same capability.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utilities            ;;
@@ -16,29 +13,6 @@
   [min max]
   (fn [value]
     (and (>= value min) (<= value max)) ))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Person/Sound Mapping ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defn inst-ns
-  "This is the instrument name with full namespace qualifiers. Useful becuase the 'sound name' is really the name of the 'definst' macro created by Overtone."
-    [instrument]
-    (eval (symbol "borderless.sound" instrument)))
-
-(def person-sound (atom {}))
-
-(defn get-sound [pid]
-  (if (contains? @person-sound pid)
-    (inst-ns (get @person-sound pid))))
-
-(defn add-person-sound! [pid sound]
-  (reset! person-sound (assoc @person-sound pid sound))
-  ((get-sound pid)))
-
-(defn remove-person-sound! [pid]
-  (if (contains? @person-sound pid)
-    (reset! person-sound (dissoc @person-sound pid))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; spec            ;;
@@ -71,7 +45,7 @@
           :opt [::attack ::sustain ::release ::gate]))
 
 (def synth-defaults
-  {::vca 1
+  {::vca 8 ;; TODO: arbitrarily changed this from 1. What is the correct value?
    ::reverb 1
    ::vco 25
    ::attack 5.0
@@ -84,47 +58,39 @@
    (last (gen/sample (s/gen ::reverb-range) 20))
    (last (gen/sample (s/gen ::vco-range) 20))])
 
-(defn synth-hacker! [number]
-  (let [mucker (synth-generator)]
-    (println mucker)
-    (o/ctl number :verb 0 :kr-mul (nth mucker 2))))
-
-(s/fdef vowel-formant
-        :args (s/cat :freq ::frequency :eq-freq ::frequency :q ::q-range)
-        :ret (s/fspec :args integer?
-                      :ret clojure.test/function?))
+(s/def ::pitch ::frequency-range)
+(s/def ::eq-freq (s/coll-of ::frequency-range))
+(s/def ::hpf-rlpf (s/coll-of number?))
+(s/def ::q ::q-range)
+(s/def ::drone (s/keys :req [::pitch ::eq-freq ::hpf-rlpf ::q]
+                       :opt [::amp ::verb ::mod-rate]))
+;; (s/fdef vowel-formant
+;;         :args (s/cat :freq ::frequency :eq-freq ::frequency :q ::q-range)
+;;         :ret (s/fspec :args integer?
+;;                       :ret clojure.test/function?))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Audio           ;;
 ;;;;;;;;;;;;;;;;;;;;;
 
-(defn vowel-formant
-  "I EQ a narrow Q on a given frequency to shape a saw waveform of a certain pitch."
-  [pitch eq-freq q]
-  (fn [] (o/resonz (o/saw pitch) eq-freq q)))
+(defn synth-unit-layered
+  "I create a stack of oscilators, each narrowly EQed on a given Q (frequency) to shape a saw waveform of a certain pitch.
+   The end results are sharp Q spikes that resemble vowel formants like eh, aw, ae, etc...
 
-(defn synth-unit-layered [freq eq-freq q kr-mul]
-  (let [[freq-a freq-b freq-c] eq-freq]
+   ex: (synth-unit-layered 200 [530 1840 2480] 0.1 25)
+   --> (#<sc-ugen: binary-op-u-gen:ar [4]> #<sc-ugen: binary-op-u-gen:ar [4]> #<sc-ugen: binary-op-u-gen:ar [4]>)"
+
+  [freq eq-freq q mod-rate]
+  (let [[freq-a freq-b freq-c] eq-freq
+        mod-multipliers [2.5 0.5 1.5]
+        pitch-with-kr (map #(overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* % mod-rate))) mod-multipliers)]
+
     (overtone.sc.ugen-collide/+
-     ((vowel-formant (overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* 2.5 kr-mul))) freq-a q))
-     ((vowel-formant (overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* 0.5 kr-mul))) freq-b q))
-     ((vowel-formant (overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* 1.5 kr-mul))) freq-c q)))))
-
-(o/definst drone-eh
-  "a testing instrument, not used in runtime"
-  [freq 100]
-  (let [eq-freq      [530 1840 2480]
-        q            0.1
-        synth-unit (overtone.sc.ugen-collide/* (o/env-gen (o/lin :sustain 12) 1 1 0 1 o/FREE)
-                      (synth-unit-layered freq eq-freq q 0.5))
-        synth-unit-lpf (o/rlpf (overtone.sc.ugen-collide/* 0.5 synth-unit)
-                                       (o/mouse-x 10 10000)
-                                       (o/mouse-y 0.0001 0.9999))]
-    synth-unit-lpf))
+        (map #(o/resonz (o/saw %) %2 q) pitch-with-kr eq-freq))))
 
 (defn synth-filter-chain
   "I shape a sound with high pass filters, resonante low pass filters, amplifiers, and reverb."
-  [synth-unit amp verb gate hpf-rlpf]
+  [synth-unit amp verb gate hpf-rlpf mod-rate-ctl]
   (let [attack (synth-defaults ::attack)
         sustain (synth-defaults ::sustain)
         release (synth-defaults ::release)
@@ -135,41 +101,35 @@
         (o/hpf hpf-freq)
         (o/rlpf rlpf-freq rlpf-q)
         (overtone.sc.ugen-collide/* amp)
+        (overtone.sc.ugen-collide/* mod-rate-ctl)
         (o/free-verb verb verb verb))))
 
-(o/definst drone-aw-sus
-  "I make the 'aw' vowel sound at a given frequency.
+(def drones {::drone-aw {::pitch 300 ::eq-freq [570 840 2410]  ::hpf-rlpf [900 600 0.6] ::q 0.1}
+             ::drone-oo {::pitch 120 ::eq-freq [300 870 2240]  ::hpf-rlpf [0 600 0.6] ::q 0.1}
+             ::drone-ae {::pitch 100 ::eq-freq [270 2290 3010] ::hpf-rlpf [600 8000 0.6] ::q 0.1}
+             ::drone-eh {::pitch 80  ::eq-freq [530 1840 2480] ::hpf-rlpf [0 750 0.9] ::q 0.1}})
+
+(defn sound-maker
+  "I make a vowel sound at a given frequency.
    I start/stop with the gate set to 1 or 0."
-  [freq   300
-   gate   (synth-defaults ::gate)
-   amp    (synth-defaults ::vca)
-   verb   (synth-defaults ::reverb)
-   kr-mul (synth-defaults ::vco)]
+  [drone]
+  (let [synth-drone (drones (keyword "borderless.sound" drone))]
+    ((o/synth (o/out 0 (let  [freq   (synth-drone ::pitch)
+                              gate   (synth-defaults ::gate)
+                              amp    (synth-defaults ::vca)
+                              verb   (synth-defaults ::reverb)
+                              mod-rate   (synth-defaults ::vco)
+                              eq-freq    (synth-drone ::eq-freq)
+                              hpf-rlpf   (synth-drone ::hpf-rlpf)
+                              q          (synth-drone ::q)
+                              synth-unit (synth-unit-layered freq eq-freq q mod-rate)]
 
-    (let [kr-mul     (:value kr-mul)
-          eq-freq    [570 840 2410]
-          hpf-rlpf   [900 600 0.6]
-          q          0.1
-          synth-unit (synth-unit-layered freq eq-freq q kr-mul)]
+                         (synth-filter-chain synth-unit amp verb gate hpf-rlpf mod-rate)))))))
 
-        (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
-
-(o/definst drone-ae-sus
-  "I make the 'ae' vowel sound at a given frequency.
-   I start/stop with the gate set to 1 or 0."
-  [freq   100
-   gate   (synth-defaults ::gate)
-   amp    (synth-defaults ::vca)
-   verb   (synth-defaults ::reverb)
-   kr-mul (synth-defaults ::vco)]
-
-  (let [kr-mul     (:value kr-mul)
-        eq-freq    [270 2290 3010]
-        hpf-rlpf   [600 8000 0.6]
-        q          0.1
-        synth-unit (synth-unit-layered freq eq-freq q kr-mul)]
-
-    (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
+(defn test-frequency
+  "This is the most basic use of o/synth"
+  []
+  (o/synth [] (o/out 0 (o/sin-osc 440))))
 
 (o/definst drone-eh-sus
   "I make the 'eh' vowel sound at a given frequency.
@@ -178,32 +138,63 @@
    gate   (synth-defaults ::gate)
    amp    (synth-defaults ::vca)
    verb   (synth-defaults ::reverb)
-   kr-mul (synth-defaults ::vco)]
+   mod-rate-ctl 25]
 
-  (let [kr-mul     (:value kr-mul)
+  (let [mod-rate   (synth-defaults ::vco)
         eq-freq    [530 1840 2480]
         hpf-rlpf   [0 750 0.9]
         q          0.1
-        synth-unit (synth-unit-layered freq eq-freq q kr-mul)]
+        synth-unit (synth-unit-layered freq eq-freq q mod-rate)]
 
-    (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
+    (synth-filter-chain synth-unit amp verb gate hpf-rlpf mod-rate-ctl)))
 
-(o/definst drone-oo-sus
-  "I make the 'oo' vowel sound at a given frequency.
-   I start/stop with the gate set to 1 or 0."
-  [freq   120
-   gate   (synth-defaults ::gate)
-   amp    (synth-defaults ::vca)
-   verb   (synth-defaults ::reverb)
-   kr-mul (synth-defaults ::vco)]
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Rhythm               ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  (let [kr-mul     (:value kr-mul)
-        eq-freq    [300 870 2240]
-        hpf-rlpf   [0 600 0.6]
-        q          0.1
-        synth-unit (synth-unit-layered freq eq-freq q kr-mul)]
 
-    (synth-filter-chain synth-unit amp verb gate hpf-rlpf)))
+(def nome (o/metronome 120))
+
+;;(looper (o/metronome 60) trem)
+
+(defn looper [nome sound]
+    (let [beat (nome)]
+        (o/at (nome beat) (sound))
+        (o/apply-by (nome (inc beat)) looper nome sound [])))
+
+(o/definst trem [freq 440 depth 10 rate 6 length 0.3]
+    (* 0.3
+       (o/line:kr 0 1 length FREE)
+       (o/saw (+ freq (* depth (o/sin-osc:kr rate))))))
+
+;; #<ScheduledJob id: 1, created-at: Wed 06:17:03s, initial-delay: 1032, desc: "Overtone delayed fn", scheduled? true>
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Person/Sound Mapping ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defn inst-ns-old
+  "This is the instrument name with full namespace qualifiers. Useful becuase the 'sound name' is really the name of the 'definst' macro created by Overtone."
+    [instrument]
+    (eval (symbol "borderless.sound" instrument)))
+
+(defn inst-ns
+    [instrument]
+    (sound-maker instrument))
+
+(def person-sound (atom {}))
+
+(defn get-sound [pid]
+  (if (contains? @person-sound pid)
+    (inst-ns (get @person-sound pid))))
+
+(defn add-person-sound! [pid sound]
+  (reset! person-sound (assoc @person-sound pid sound))
+  (get-sound pid))
+
+(defn remove-person-sound! [pid]
+  (if (contains? @person-sound pid)
+    (reset! person-sound (dissoc @person-sound pid))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Control         ;;
@@ -239,11 +230,18 @@
     (println pid " entered")
 
   (case number-of-people
-    0 (add-person-sound! pid "drone-aw-sus")
-    1 (add-person-sound! pid "drone-ae-sus")
-    2 (add-person-sound! pid "drone-eh-sus")
-    3 (add-person-sound! pid "drone-oo-sus")
+    0 (add-person-sound! pid "drone-aw")
+    1 (add-person-sound! pid "drone-ae")
+    2 (add-person-sound! pid "drone-eh")
+    3 (add-person-sound! pid "drone-oo")
     "atom full: four people are tracked")))
+
+  ;; (case number-of-people
+  ;;   0 (add-person-sound! pid "drone-aw-sus")
+  ;;   1 (add-person-sound! pid "drone-ae-sus")
+  ;;   2 (add-person-sound! pid "drone-eh-sus")
+  ;;   3 (add-person-sound! pid "drone-oo-sus")
+  ;;   "atom full: four people are tracked")))
 
 (defn control-sound
   "I take a val between 0 and 1000+, map the value, and send it to the instrument's controller."
@@ -255,4 +253,34 @@
       (o/ctl (get-sound pid)
            :amp amp-val
            :verb verb-val
-           :kr-mul kr-val))))
+           :mod-rate-ctl kr-val))))
+
+
+;; TODO -
+;; Person Entered
+;; - Assign them a number
+;; - Add them to a list
+;; - Create a sound for them
+;; - Associate the sound with the number
+;; - Play Sound
+
+;; Person Leave
+;; - End sound
+;; - Remove number (and therefore sound)
+
+;; Person updated
+;; - Query ID number in list
+;; - Pass information to sound
+;;- Update sound
+
+;; Transducers are composable algorithmic transformations. They are independent from the context of their input and output sources and specify only the essence of the transformation in terms of an individual element. Because transducers are decoupled from input or output sources, they can be used in many different processes - collections, streams, channels, observables, etc. Transducers compose directly, without awareness of input or creation of intermediate aggregates.
+;; https://clojure.org/guides/spec
+;; Generating synthdefs: https://github.com/overtone/overtone/wiki/Comparing-sclang-and-Overtone-synthdefs
+;; OSC -> Transducer -> keyword list
+
+
+
+;; TODO -
+;; Rhythm
+;; - Basic metronome for the first person
+;; - Second metronome in phase when they're close together, drifting as they move apart
