@@ -64,10 +64,10 @@
 (s/def ::q ::q-range)
 (s/def ::drone (s/keys :req [::pitch ::eq-freq ::hpf-rlpf ::q]
                        :opt [::amp ::verb ::mod-rate]))
-;; (s/fdef vowel-formant
-;;         :args (s/cat :freq ::frequency :eq-freq ::frequency :q ::q-range)
-;;         :ret (s/fspec :args integer?
-;;                       :ret clojure.test/function?))
+
+(s/fdef ctl-names
+        :args (s/cat :sound-symbol symbol? :parameter keyword?)
+        :ret keyword?)
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Audio           ;;
@@ -108,6 +108,45 @@
              ::drone-oo {::pitch 120 ::eq-freq [300 870 2240]  ::hpf-rlpf [0 600 0.6] ::q 0.1}
              ::drone-ae {::pitch 100 ::eq-freq [270 2290 3010] ::hpf-rlpf [600 8000 0.6] ::q 0.1}
              ::drone-eh {::pitch 80  ::eq-freq [530 1840 2480] ::hpf-rlpf [0 750 0.9] ::q 0.1}})
+
+(defn ctl-names
+  "I take a generated sound's symbol (ex: 'drone-aw11111) and a parameter (ex: :freq) and destructure the generated control values (ex: :freq > freq__20280__auto__).
+   I return the generated control value.
+
+   Example: (ctl-names 'drone-aw20496 :amp) => :amp__20282__auto__"
+
+  [sound-symbol parameter]
+  (let [ctl-data (o/ctl (eval sound-symbol))
+        {params :params} ctl-data
+        [freq gate amp] params
+        gensym-keymap {:freq (freq :name) :gate (gate :name) :amp (amp :name)}]
+
+    (keyword (gensym-keymap parameter))))
+
+(defmacro sound-returner [drone]
+  "I take a sound's name as defined using clojure.spec and call the definst macro to generate an instrument on the fly
+
+   Example: (sound-returner 'drone-eh') => #<instrument: drone-eh24097>
+
+   Then the user can use Overtone's ctl function to update the sound.
+
+   Example: (o/ctl drone-eh24097 (ctl-names 'drone-eh24097 :amp) 10)"
+
+  (let [inst-name (gensym drone)
+        synth-drone (drones (keyword "borderless.sound" drone))]
+    `(do
+       (o/definst ~inst-name [freq#  (~synth-drone ::pitch)
+                              gate#  (~synth-defaults ::gate)
+                              amp#   (~synth-defaults ::vca)]
+         (let [verb#       (~synth-defaults ::reverb)
+               mod-rate#   (~synth-defaults ::vco)
+               eq-freq#     (~synth-drone ::eq-freq)
+               hpf-rlpf#   (~synth-drone ::hpf-rlpf)
+               q#          (~synth-drone ::q)
+               synth-unit# (synth-unit-layered freq# eq-freq# q# mod-rate#)]
+
+           (synth-filter-chain synth-unit# amp# verb# gate# hpf-rlpf# mod-rate#)
+           )))))
 
 (defn sound-maker
   "I make a vowel sound at a given frequency.
@@ -154,8 +193,6 @@
 
 
 (def nome (o/metronome 120))
-
-;;(looper (o/metronome 60) trem)
 
 (defn looper [nome sound]
     (let [beat (nome)]
@@ -212,7 +249,7 @@
     :else 1))
 
 (defn end-sound! [pid]
-  (when (contains? (deref person-sound) pid) (o/ctl (get-sound pid) :gate 0) 
+  (when (contains? (deref person-sound) pid) (o/ctl (get-sound pid) :gate 0)
   	(println "Left: " pid)
   	(remove-person-sound! pid)))
 

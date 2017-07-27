@@ -6,7 +6,7 @@
 
   :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
                  [environ "1.0.3"]
-                 [overtone "0.10.1"]]
+                 [overtone "0.10.2"]]
   :plugins [[lein-environ "1.0.3"]
             [lein-kibit "0.1.5"]]
   :jvm-opts ^:replace []
