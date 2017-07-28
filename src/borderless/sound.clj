@@ -14,6 +14,10 @@
   (fn [value]
     (and (>= value min) (<= value max)) ))
 
+(defn inst-name-getter
+  [inst]
+  (-> inst meta :name))
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; spec            ;;
 ;;;;;;;;;;;;;;;;;;;;;
@@ -45,7 +49,7 @@
           :opt [::attack ::sustain ::release ::gate]))
 
 (def synth-defaults
-  {::vca 8 ;; TODO: arbitrarily changed this from 1. What is the correct value?
+  {::vca 1 ;; TODO: arbitrarily changed this from 1. What is the correct value?
    ::reverb 1
    ::vco 25
    ::attack 5.0
@@ -65,13 +69,19 @@
 (s/def ::drone (s/keys :req [::pitch ::eq-freq ::hpf-rlpf ::q]
                        :opt [::amp ::verb ::mod-rate]))
 
-(s/fdef ctl-names
-        :args (s/cat :sound-symbol symbol? :parameter keyword?)
-        :ret keyword?)
+;; (= :overtone.studio.inst/instrument (type (get @person-sound 1)))
+;; (s/fdef ctl-names
+;;         :args (s/cat :instrument ??? :parameter keyword?)
+;;         :ret keyword?)
 
 ;;;;;;;;;;;;;;;;;;;;;
-;; Audio           ;;
+;; Audio Sculpting ;;
 ;;;;;;;;;;;;;;;;;;;;;
+
+(def drones {::drone-aw {::pitch 300 ::eq-freq [570 840 2410]  ::hpf-rlpf [900 600 0.6] ::q 0.1}
+             ::drone-oo {::pitch 120 ::eq-freq [300 870 2240]  ::hpf-rlpf [0 600 0.6] ::q 0.1}
+             ::drone-ae {::pitch 100 ::eq-freq [270 2290 3010] ::hpf-rlpf [600 8000 0.6] ::q 0.1}
+             ::drone-eh {::pitch 80  ::eq-freq [530 1840 2480] ::hpf-rlpf [0 750 0.9] ::q 0.1}})
 
 (defn synth-unit-layered
   "I create a stack of oscilators, each narrowly EQed on a given Q (frequency) to shape a saw waveform of a certain pitch.
@@ -83,7 +93,7 @@
   [freq eq-freq q mod-rate]
   (let [[freq-a freq-b freq-c] eq-freq
         mod-multipliers [2.5 0.5 1.5]
-        pitch-with-kr (map #(overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (* % mod-rate))) mod-multipliers)]
+        pitch-with-kr (map #(overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (overtone.sc.ugen-collide/* % mod-rate))) mod-multipliers)]
 
     (overtone.sc.ugen-collide/+
         (map #(o/resonz (o/saw %) %2 q) pitch-with-kr eq-freq))))
@@ -104,24 +114,29 @@
         (overtone.sc.ugen-collide/* mod-rate-ctl)
         (o/free-verb verb verb verb))))
 
-(def drones {::drone-aw {::pitch 300 ::eq-freq [570 840 2410]  ::hpf-rlpf [900 600 0.6] ::q 0.1}
-             ::drone-oo {::pitch 120 ::eq-freq [300 870 2240]  ::hpf-rlpf [0 600 0.6] ::q 0.1}
-             ::drone-ae {::pitch 100 ::eq-freq [270 2290 3010] ::hpf-rlpf [600 8000 0.6] ::q 0.1}
-             ::drone-eh {::pitch 80  ::eq-freq [530 1840 2480] ::hpf-rlpf [0 750 0.9] ::q 0.1}})
-
 (defn ctl-names
-  "I take a generated sound's symbol (ex: 'drone-aw11111) and a parameter (ex: :freq) and destructure the generated control values (ex: :freq > freq__20280__auto__).
+  "I take an instrument (type - :overtone.studio.inst/instrument) and a keyword parameter (ex: :freq)
+   ane destructure the generated control values (ex: :freq > freq__20280__auto__).
+
    I return the generated control value.
 
-   Example: (ctl-names 'drone-aw20496 :amp) => :amp__20282__auto__"
+   Example: (ctl-names (get @person-sound 1) :amp) => :amp__20282__auto__"
 
-  [sound-symbol parameter]
-  (let [ctl-data (o/ctl (eval sound-symbol))
-        {params :params} ctl-data
-        [freq gate amp] params
-        gensym-keymap {:freq (freq :name) :gate (gate :name) :amp (amp :name)}]
+  [instrument parameter]
 
-    (keyword (gensym-keymap parameter))))
+  (if-let [instrument-symbol (inst-name-getter instrument)]
+    ;; If the instrument doesn't exist, it will return nil and not execute the rest of the closure.
+
+    (let [ctl-data (o/ctl (eval instrument-symbol)) ;; Grab the control data map
+          {params :params} ctl-data                 ;; Grab the parametrs from the control data
+          [freq gate amp verb mod-rate] params      ;; Destructure the parameters
+          gensym-keymap {:freq (freq :name)
+                         :gate (gate :name)
+                         :amp (amp :name)
+                         :verb (verb :name)
+                         :mod-rate (mod-rate :name)}]
+
+      (keyword (gensym-keymap parameter)))))
 
 (defmacro sound-returner [drone]
   "I take a sound's name as defined using clojure.spec and call the definst macro to generate an instrument on the fly
@@ -135,12 +150,12 @@
   (let [inst-name (gensym drone)
         synth-drone (drones (keyword "borderless.sound" drone))]
     `(do
-       (o/definst ~inst-name [freq#  (~synth-drone ::pitch)
-                              gate#  (~synth-defaults ::gate)
-                              amp#   (~synth-defaults ::vca)]
-         (let [verb#       (~synth-defaults ::reverb)
-               mod-rate#   (~synth-defaults ::vco)
-               eq-freq#     (~synth-drone ::eq-freq)
+       (o/definst ~inst-name [freq#     (~synth-drone ::pitch)
+                              gate#     (~synth-defaults ::gate)
+                              amp#      (~synth-defaults ::vca)
+                              verb#     (~synth-defaults ::reverb)
+                              mod-rate# (~synth-defaults ::vco)]
+         (let [eq-freq#    (~synth-drone ::eq-freq)
                hpf-rlpf#   (~synth-drone ::hpf-rlpf)
                q#          (~synth-drone ::q)
                synth-unit# (synth-unit-layered freq# eq-freq# q# mod-rate#)]
@@ -210,20 +225,11 @@
 ;; Person/Sound Mapping ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn inst-ns-old
-  "This is the instrument name with full namespace qualifiers. Useful becuase the 'sound name' is really the name of the 'definst' macro created by Overtone."
-    [instrument]
-    (eval (symbol "borderless.sound" instrument)))
-
-(defn inst-ns
-    [instrument]
-    (sound-maker instrument))
-
 (def person-sound (atom {}))
 
 (defn get-sound [pid]
   (if (contains? @person-sound pid)
-    (inst-ns (get @person-sound pid))))
+    ((get @person-sound pid))))
 
 (defn add-person-sound! [pid sound]
   (reset! person-sound (assoc @person-sound pid sound))
@@ -249,9 +255,12 @@
     :else 1))
 
 (defn end-sound! [pid]
-  (when (contains? (deref person-sound) pid) (o/ctl (get-sound pid) :gate 0)
-  	(println "Left: " pid)
-  	(remove-person-sound! pid)))
+  (let [instrument (get @person-sound pid)
+        instrument-symbol (inst-name-getter instrument)
+        gate-name (ctl-names instrument :gate)]
+    (when (contains? (deref person-sound) pid) (o/ctl (eval instrument-symbol) gate-name 0)
+          (println "Left: " pid)
+          (remove-person-sound! pid))))
 
 (defn reset-atom [current-people]
   (when (seq current-people) (end-sound! (ffirst current-people)) (reset-atom (rest current-people))))
@@ -267,30 +276,30 @@
     (println pid " entered")
 
   (case number-of-people
-    0 (add-person-sound! pid "drone-aw")
-    1 (add-person-sound! pid "drone-ae")
-    2 (add-person-sound! pid "drone-eh")
-    3 (add-person-sound! pid "drone-oo")
+    0 (add-person-sound! pid (sound-returner "drone-aw"))
+    1 (add-person-sound! pid (sound-returner "drone-oo"))
+    2 (add-person-sound! pid (sound-returner "drone-ae"))
+    3 (add-person-sound! pid (sound-returner "drone-eh"))
     "atom full: four people are tracked")))
-
-  ;; (case number-of-people
-  ;;   0 (add-person-sound! pid "drone-aw-sus")
-  ;;   1 (add-person-sound! pid "drone-ae-sus")
-  ;;   2 (add-person-sound! pid "drone-eh-sus")
-  ;;   3 (add-person-sound! pid "drone-oo-sus")
-  ;;   "atom full: four people are tracked")))
 
 (defn control-sound
   "I take a val between 0 and 1000+, map the value, and send it to the instrument's controller."
   [pid val]
-  (let [verb-val  (o/scale-range val 0 1000 1 0.3)
-        kr-val    (o/scale-range val 0 1000 25 0)
-        amp-val   (amplitude-mul val)]
+  (let [instrument (get @person-sound pid)
+        instrument-symbol (inst-name-getter instrument)
+
+        amp-name (ctl-names instrument :amp)
+        verb-name (ctl-names instrument :verb)
+        mod-name (ctl-names instrument :mod-rate)
+
+        amp-val   (amplitude-mul val)
+        verb-val  (o/scale-range val 0 1000 1 0.3)
+        kr-val    (o/scale-range val 0 1000 25 4)]
     (if (contains? @person-sound pid)
-      (o/ctl (get-sound pid)
-           :amp amp-val
-           :verb verb-val
-           :mod-rate-ctl kr-val))))
+      (o/ctl (eval instrument-symbol)
+           amp-name amp-val
+           verb-name verb-val
+           mod-name kr-val))))
 
 
 ;; TODO -
@@ -321,3 +330,14 @@
 ;; Rhythm
 ;; - Basic metronome for the first person
 ;; - Second metronome in phase when they're close together, drifting as they move apart
+
+;; {:name "drone-aw23914", :params (
+;;                                  {:name "freq__23702__auto__", :default 300.0, :rate :kr, :value #atom[300.0 0x7ebe010a]}
+;;                                  {:name "gate__23703__auto__", :default 1.0, :rate :kr, :value #atom[1.0 0x2f278a21]}
+;;                                  {:name "amp__23704__auto__", :default 8.0, :rate :kr, :value #atom[8.0 0x36cfe335]}),
+;;  :args ("freq__23702__auto__" "gate__23703__auto__" "amp__23704__auto__"),
+;;  :sdef {:name "borderless.sound/drone-aw23914", :constants [0.0 0 1.0 900.0 840.0 5.0 53.0 37.5 600.0 12.5 25.0 62.5 570.0 2410.0 -4 0.4 1 0.1 2 5 0.6 -99], :params (300.0 1.0 8.0), :pnames ({:name "freq__23702__auto__", :index 0} {:name "gate__23703__auto__", :index 1} {:name "amp__23704__auto__", :index 2}), :ugens ({:args nil, :special 0, :name "Control", :rate 1, :inputs (), :rate-name :kr, :n-outputs 3, :id 1365, :outputs ({:rate 1} {:rate 1} {:rate 1}), :n-inputs 0} #<sc-ugen: sin-osc:kr [0]> #<sc-ugen: binary-op-u-gen:kr [2]> #<sc-ugen: saw:ar [3]> #<sc-ugen: resonz:ar [4]> #<sc-ugen: binary-op-u-gen:ar [5]> #<sc-ugen: env-gen:kr [1]> #<sc-ugen: binary-op-u-gen:ar [8]> #<sc-ugen: hpf:ar [9]> #<sc-ugen: rlpf:ar [10]> #<sc-ugen: binary-op-u-gen:ar [12]> #<sc-ugen: sin-osc:kr [0]> #<sc-ugen: binary-op-u-gen:kr [2]> #<sc-ugen: saw:ar [3]> #<sc-ugen: resonz:ar [4]> #<sc-ugen: binary-op-u-gen:ar [5]> #<sc-ugen: binary-op-u-gen:ar [8]> #<sc-ugen: hpf:ar [9]> #<sc-ugen: rlpf:ar [10]> #<sc-ugen: sin-osc:kr [0]> #<sc-ugen: binary-op-u-gen:kr [2]> #<sc-ugen: saw:ar [3]> #<sc-ugen: resonz:ar [4]> #<sc-ugen: binary-op-u-gen:ar [12]> #<sc-ugen: binary-op-u-gen:ar [13]> #<sc-ugen: binary-op-u-gen:ar [5]> #<sc-ugen: binary-op-u-gen:ar [8]> #<sc-ugen: hpf:ar [9]> #<sc-ugen: rlpf:ar [10]> #<sc-ugen: binary-op-u-gen:ar [12]> #<sc-ugen: binary-op-u-gen:ar [13]> #<sc-ugen: free-verb:ar [14]> #<sc-ugen: free-verb:ar [14]> #<sc-ugen: binary-op-u-gen:ar [13]> #<sc-ugen: free-verb:ar [14]> #<sc-ugen: out:ar [45]>)},
+;;  :group #<synth-group [live] : Inst drone-aw23914 Container 102>,
+;;  :instance-group #<synth-group [live] : Inst drone-aw23914 103>,
+;;  :fx-group #<synth-group [live] : Inst drone-aw23914 FX 104>, :mixer #<synth-node [live] : overtone.s547/stereo-inst-mixer 105>,
+;;  :bus #<audio-bus: No Name, 3 channels, id 53>, :fx-chain [], :volume #atom[1.0 0x6aa35da8], :pan #atom[0.0 0x641ba7a7], :n-chans 3}
