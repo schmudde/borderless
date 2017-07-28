@@ -330,14 +330,3 @@
 ;; Rhythm
 ;; - Basic metronome for the first person
 ;; - Second metronome in phase when they're close together, drifting as they move apart
-
-;; {:name "drone-aw23914", :params (
-;;                                  {:name "freq__23702__auto__", :default 300.0, :rate :kr, :value #atom[300.0 0x7ebe010a]}
-;;                                  {:name "gate__23703__auto__", :default 1.0, :rate :kr, :value #atom[1.0 0x2f278a21]}
-;;                                  {:name "amp__23704__auto__", :default 8.0, :rate :kr, :value #atom[8.0 0x36cfe335]}),
-;;  :args ("freq__23702__auto__" "gate__23703__auto__" "amp__23704__auto__"),
-;;  :sdef {:name "borderless.sound/drone-aw23914", :constants [0.0 0 1.0 900.0 840.0 5.0 53.0 37.5 600.0 12.5 25.0 62.5 570.0 2410.0 -4 0.4 1 0.1 2 5 0.6 -99], :params (300.0 1.0 8.0), :pnames ({:name "freq__23702__auto__", :index 0} {:name "gate__23703__auto__", :index 1} {:name "amp__23704__auto__", :index 2}), :ugens ({:args nil, :special 0, :name "Control", :rate 1, :inputs (), :rate-name :kr, :n-outputs 3, :id 1365, :outputs ({:rate 1} {:rate 1} {:rate 1}), :n-inputs 0} #<sc-ugen: sin-osc:kr [0]> #<sc-ugen: binary-op-u-gen:kr [2]> #<sc-ugen: saw:ar [3]> #<sc-ugen: resonz:ar [4]> #<sc-ugen: binary-op-u-gen:ar [5]> #<sc-ugen: env-gen:kr [1]> #<sc-ugen: binary-op-u-gen:ar [8]> #<sc-ugen: hpf:ar [9]> #<sc-ugen: rlpf:ar [10]> #<sc-ugen: binary-op-u-gen:ar [12]> #<sc-ugen: sin-osc:kr [0]> #<sc-ugen: binary-op-u-gen:kr [2]> #<sc-ugen: saw:ar [3]> #<sc-ugen: resonz:ar [4]> #<sc-ugen: binary-op-u-gen:ar [5]> #<sc-ugen: binary-op-u-gen:ar [8]> #<sc-ugen: hpf:ar [9]> #<sc-ugen: rlpf:ar [10]> #<sc-ugen: sin-osc:kr [0]> #<sc-ugen: binary-op-u-gen:kr [2]> #<sc-ugen: saw:ar [3]> #<sc-ugen: resonz:ar [4]> #<sc-ugen: binary-op-u-gen:ar [12]> #<sc-ugen: binary-op-u-gen:ar [13]> #<sc-ugen: binary-op-u-gen:ar [5]> #<sc-ugen: binary-op-u-gen:ar [8]> #<sc-ugen: hpf:ar [9]> #<sc-ugen: rlpf:ar [10]> #<sc-ugen: binary-op-u-gen:ar [12]> #<sc-ugen: binary-op-u-gen:ar [13]> #<sc-ugen: free-verb:ar [14]> #<sc-ugen: free-verb:ar [14]> #<sc-ugen: binary-op-u-gen:ar [13]> #<sc-ugen: free-verb:ar [14]> #<sc-ugen: out:ar [45]>)},
-;;  :group #<synth-group [live] : Inst drone-aw23914 Container 102>,
-;;  :instance-group #<synth-group [live] : Inst drone-aw23914 103>,
-;;  :fx-group #<synth-group [live] : Inst drone-aw23914 FX 104>, :mixer #<synth-node [live] : overtone.s547/stereo-inst-mixer 105>,
-;;  :bus #<audio-bus: No Name, 3 channels, id 53>, :fx-chain [], :volume #atom[1.0 0x6aa35da8], :pan #atom[0.0 0x641ba7a7], :n-chans 3}
