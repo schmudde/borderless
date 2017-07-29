@@ -38,13 +38,16 @@
 ;; 20+ : contours (if enabled)
 
 
-;; borderless.osc-server> (osc/osc-handle server "/foo/bar" (fn [msg] (println "Handler for /foo/bar: " msg)))
-;;     #<osc-server: n-listeners[0] n-handlers[4] port[12000] open?[true]>
-;; borderless.osc-server> (osc/osc-send client "/foo/bar" "lalal")
-;;     nil
-;;     Handler for /foo/bar:  {:path /foo/bar, :type-tag s, :args (lalal), :src-host localhost, :src-port 61015}
-;; borderless.osc-server> (osc/osc-send client "/foo/bar" "409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0")
-;;     => Handler for /foo/bar:  {:path /foo/bar, :type-tag s, :args (409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host localhost, :src-port 56319}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Test Message:
+;;
+;; (defn osc-send
+;;   [client path & args]
+;; (osc-send-msg client (apply mk-osc-msg path (osc-type-tag args) args)))
+;;
+;; THIS WORKS: (osc/osc-send client "/TSPS/personEntered" 4)
+;;             (osc/osc-send client "/TSPS/personWillLeave" 4)
+
 
 (def PORT 12000)
 
@@ -77,7 +80,8 @@
                 (let [ id (nth (:args msg) 0)]
                   (sound/end-sound! id)))))
 
-(defn person-enter []
+(defn person-enter
+  []
     (osc/osc-handle server "/TSPS/personEntered"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)]
@@ -87,9 +91,9 @@
   (sound/control-sound (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2) 1)
 )
 
-(def x {:path "/TSPS/personEntered/",
-        :type-tag "iiifffffffffffffffff",
-        :args '(409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host "localhost", :src-port 49551})
+(def test-msg {:path "/TSPS/personEntered/",
+               :type-tag "iiifffffffffffffffff",
+               :args '(409 0 2 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0), :src-host "localhost", :src-port 49551})
 
 (defn open-server! []
   ;; create handlers

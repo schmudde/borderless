@@ -126,8 +126,7 @@
 
   (if-let [instrument-symbol (inst-name-getter instrument)]
     ;; If the instrument doesn't exist, it will return nil and not execute the rest of the closure.
-
-    (let [ctl-data (o/ctl (eval instrument-symbol)) ;; Grab the control data map
+    (let [ctl-data (eval (symbol "borderless.sound" (str instrument-symbol))) ;; Grab the control data map
           {params :params} ctl-data                 ;; Grab the parametrs from the control data
           [freq gate amp verb mod-rate] params      ;; Destructure the parameters
           gensym-keymap {:freq (freq :name)
@@ -258,9 +257,12 @@
   (let [instrument (get @person-sound pid)
         instrument-symbol (inst-name-getter instrument)
         gate-name (ctl-names instrument :gate)]
-    (when (contains? (deref person-sound) pid) (o/ctl (eval instrument-symbol) gate-name 0)
+    (when (contains? (deref person-sound) pid)
+      (o/ctl
+       (eval (symbol "borderless.sound" (str instrument-symbol)))
+       gate-name 0)
           (println "Left: " pid)
-          (remove-person-sound! pid))))
+      (remove-person-sound! pid))))
 
 (defn reset-atom [current-people]
   (when (seq current-people) (end-sound! (ffirst current-people)) (reset-atom (rest current-people))))
@@ -296,7 +298,7 @@
         verb-val  (o/scale-range val 0 1000 1 0.3)
         kr-val    (o/scale-range val 0 1000 25 4)]
     (if (contains? @person-sound pid)
-      (o/ctl (eval instrument-symbol)
+      (o/ctl (eval (symbol "borderless.sound" (str instrument-symbol)))
            amp-name amp-val
            verb-name verb-val
            mod-name kr-val))))
