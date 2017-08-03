@@ -52,6 +52,7 @@
   {::vca 1 ;; TODO: arbitrarily changed this from 1. What is the correct value?
    ::reverb 1
    ::vco 25
+   ::vibrato 5
    ::attack 5.0
    ::sustain 0.4
    ::release 5.0
@@ -106,7 +107,7 @@
 
 (defn synth-filter-chain
   "I shape a sound with high pass filters, resonante low pass filters, amplifiers, and reverb."
-  [synth-unit amp verb gate hpf-rlpf mod-rate-ctl]
+  [synth-unit amp verb gate hpf-rlpf mod-rate-ctl vib-rate]
   (let [attack (synth-defaults ::attack)
         sustain (synth-defaults ::sustain)
         release (synth-defaults ::release)
@@ -118,6 +119,7 @@
         (o/rlpf rlpf-freq rlpf-q)
         (overtone.sc.ugen-collide/* amp)
         (overtone.sc.ugen-collide/* mod-rate-ctl)
+        (o/vibrato :rate vib-rate :depth 0.5 :depth-variation 0.5)
         (o/free-verb verb verb verb))))
 
 (defn ctl-names
@@ -134,12 +136,13 @@
     ;; If the instrument doesn't exist, it will return nil and not execute the rest of the closure.
     (let [ctl-data (eval (symbol "borderless.sound" (str instrument-symbol))) ;; Grab the control data map
           {params :params} ctl-data                 ;; Grab the parametrs from the control data
-          [freq gate amp verb mod-rate] params      ;; Destructure the parameters
+          [freq gate amp verb mod-rate vib-rate] params      ;; Destructure the parameters
           gensym-keymap {:freq (freq :name)
                          :gate (gate :name)
                          :amp (amp :name)
                          :verb (verb :name)
-                         :mod-rate (mod-rate :name)}]
+                         :mod-rate (mod-rate :name)
+                         :vib-rate (vib-rate :name)}]
 
       (keyword (gensym-keymap parameter)))))
 
@@ -159,13 +162,14 @@
                               gate#     (~synth-defaults ::gate)
                               amp#      (~synth-defaults ::vca)
                               verb#     (~synth-defaults ::reverb)
-                              mod-rate# (~synth-defaults ::vco)]
+                              mod-rate# (~synth-defaults ::vco)
+                              vib-rate# (~synth-defaults ::vibrato)]
          (let [eq-freq#    (~synth-drone ::eq-freq)
                hpf-rlpf#   (~synth-drone ::hpf-rlpf)
                q#          (~synth-drone ::q)
                synth-unit# (synth-unit-layered freq# eq-freq# q# mod-rate#)]
 
-           (synth-filter-chain synth-unit# amp# verb# gate# hpf-rlpf# mod-rate#)
+           (synth-filter-chain synth-unit# amp# verb# gate# hpf-rlpf# mod-rate# vib-rate#)
            )))))
 
 (defn sound-maker
@@ -192,37 +196,10 @@
   []
   (o/synth [] (o/out 0 (o/sin-osc 440))))
 
-(o/definst test-saw
-  "Example: (o/ctl 48 :modulate-freq 10 :depth 1)"
-  [freq 440 modulate-freq 0 depth 1]
-  (->> (+ (o/lf-pulse:kr modulate-freq))  ;; lf-pulse ranges from 0 - 1. Modulate frequency is the speed of amplitude adjustments
-       (* depth)                          ;; Depth = 1 means that amplitude will range from 0 - 2
-       (* (o/saw freq))))                 ;; This is the timbre and pitch, multiplied by amplitude
-
-;; TODO - when the pulse is killed at 0 by setting the modulate-freq to 0, then amplitude is set to zero (* 0 depth)
-;;      - when the pulse is killed at 1 by setting the modulate-freq to 0, then amplitude is set to depth (* 1 depth)
-
-;;  (* (o/saw freq) (* depth (+ (o/lf-pulse:kr modulate-freq) 1))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Rhythm               ;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-(def nome (o/metronome 120))
-
-(defn looper [nome sound]
-    (let [beat (nome)]
-        (o/at (nome beat) (sound))
-        (o/apply-by (nome (inc beat)) looper nome sound [])))
-
-(o/definst trem [freq 440 depth 10 rate 6 length 0.3]
-    (* 0.3
-       (o/line:kr 0 1 length FREE)
-       (o/saw (+ freq (* depth (o/sin-osc:kr rate))))))
-
-;; #<ScheduledJob id: 1, created-at: Wed 06:17:03s, initial-delay: 1032, desc: "Overtone delayed fn", scheduled? true>
-
+(o/definst test-vibrato
+  "Example: (o/ctl 96 :freq 200 :depth 0.9 :rate 9)"
+  [freq 440 rate 5 depth 0.02]
+  (o/vibrato (o/saw freq) rate depth :depth-variation 0.5))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Person/Sound Mapping ;;
@@ -242,6 +219,11 @@
   (if (contains? @person-sound pid)
     (reset! person-sound (dissoc @person-sound pid))))
 
+(defn instrument-and-symbol [pid]
+  (let [instrument (get @person-sound pid)
+        instrument-symbol (inst-name-getter instrument)]
+    [instrument instrument-symbol]))
+
 ;;;;;;;;;;;;;;;;;;;;;
 ;; Control         ;;
 ;;;;;;;;;;;;;;;;;;;;;
@@ -258,8 +240,7 @@
     :else 1))
 
 (defn end-sound! [pid]
-  (let [instrument (get @person-sound pid)
-        instrument-symbol (inst-name-getter instrument)
+  (let [[instrument instrument-symbol] (instrument-and-symbol pid)
         gate-name (ctl-names instrument :gate)]
     (when (contains? (deref person-sound) pid)
       (o/ctl
@@ -288,11 +269,18 @@
     3 (add-person-sound! pid (sound-returner "drone-eh"))
     "atom full: four people are tracked")))
 
-(defn control-sound
+(defmulti controller (fn [parameter pid val] parameter))
+
+(defmethod controller :rate [parameter pid val]
+  (let [[instrument instrument-symbol] (instrument-and-symbol pid)
+        rate-name (ctl-names instrument :vib-rate)]
+    (if (contains? @person-sound pid)
+      (o/ctl (eval (symbol "borderless.sound" (str instrument-symbol))) rate-name val))))
+
+(defmethod controller :timbre [parameter pid val]
   "I take a val between 0 and 1000+, map the value, and send it to the instrument's controller."
   [pid val]
-  (let [instrument (get @person-sound pid)
-        instrument-symbol (inst-name-getter instrument)
+  (let [[instrument instrument-symbol] (instrument-and-symbol pid)
 
         amp-name (ctl-names instrument :amp)
         verb-name (ctl-names instrument :verb)
@@ -303,9 +291,9 @@
         kr-val    (o/scale-range val 0 1000 25 4)]
     (if (contains? @person-sound pid)
       (o/ctl (eval (symbol "borderless.sound" (str instrument-symbol)))
-           amp-name amp-val
-           verb-name verb-val
-           mod-name kr-val))))
+             amp-name amp-val
+             verb-name verb-val
+             mod-name kr-val))))
 
 
 ;; TODO -

@@ -46,8 +46,8 @@
 ;; (osc-send-msg client (apply mk-osc-msg path (osc-type-tag args) args)))
 ;;
 ;; THIS WORKS: (osc/osc-send client "/TSPS/personEntered" 4)
+;;             (osc/osc-send client "/TSPS/personUpdated" 4 0 800)
 ;;             (osc/osc-send client "/TSPS/personWillLeave" 4)
-
 
 (def PORT 12000)
 
@@ -72,7 +72,7 @@
               (fn [msg]
                 (let [ id (nth (:args msg) 0)
                       age (nth (:args msg) 2)]
-                  (sound/control-sound id age)))))
+                  (sound/controller :timbre id age)))))
 
 (defn person-leave []
     (osc/osc-handle server "/TSPS/personWillLeave"
@@ -88,7 +88,7 @@
                   (sound/start-sound! id)))))
 
 (defn person []
-  (sound/control-sound (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2) 1)
+  (sound/controller :timbre (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2) 1)
 )
 
 (def test-msg {:path "/TSPS/personEntered/",
