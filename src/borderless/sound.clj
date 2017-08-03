@@ -87,6 +87,12 @@
   "I create a stack of oscilators, each narrowly EQed on a given Q (frequency) to shape a saw waveform of a certain pitch.
    The end results are sharp Q spikes that resemble vowel formants like eh, aw, ae, etc...
 
+   Step one is created a stack of pitches, all tuned to a fundamental frequency (the freq parameter)
+   The frequency is modulated (the mod-rate parameter) by the control rate (0hz = no modulation)
+   The mod-rate parameter is adjusted by an array of mod-multipliers (3 mod-multipliers = three voices)
+   Note: the freq and mod-rate parameters are not integers, they are overtone.sc.machinery.ugen.sc_ugen.ControlProxy
+         coming from the definst macro, therefore the * must be overtone.sc.ugen-collide/*
+
    ex: (synth-unit-layered 200 [530 1840 2480] 0.1 25)
    --> (#<sc-ugen: binary-op-u-gen:ar [4]> #<sc-ugen: binary-op-u-gen:ar [4]> #<sc-ugen: binary-op-u-gen:ar [4]>)"
 
@@ -95,7 +101,7 @@
         mod-multipliers [2.5 0.5 1.5]
         pitch-with-kr (map #(overtone.sc.ugen-collide/+ freq (o/sin-osc:kr (overtone.sc.ugen-collide/* % mod-rate))) mod-multipliers)]
 
-    (overtone.sc.ugen-collide/+
+    (o/mix
         (map #(o/resonz (o/saw %) %2 q) pitch-with-kr eq-freq))))
 
 (defn synth-filter-chain
@@ -164,7 +170,9 @@
 
 (defn sound-maker
   "I make a vowel sound at a given frequency.
-   I start/stop with the gate set to 1 or 0."
+
+   Example: (sound-maker 'drone-aw')"
+
   [drone]
   (let [synth-drone (drones (keyword "borderless.sound" drone))]
     ((o/synth (o/out 0 (let  [freq   (synth-drone ::pitch)
@@ -184,22 +192,17 @@
   []
   (o/synth [] (o/out 0 (o/sin-osc 440))))
 
-(o/definst drone-eh-sus
-  "I make the 'eh' vowel sound at a given frequency.
-   I start/stop with the gate set to 1 or 0."
-  [freq   80
-   gate   (synth-defaults ::gate)
-   amp    (synth-defaults ::vca)
-   verb   (synth-defaults ::reverb)
-   mod-rate-ctl 25]
+(o/definst test-saw
+  "Example: (o/ctl 48 :modulate-freq 10 :depth 1)"
+  [freq 440 modulate-freq 0 depth 1]
+  (->> (+ (o/lf-pulse:kr modulate-freq))  ;; lf-pulse ranges from 0 - 1. Modulate frequency is the speed of amplitude adjustments
+       (* depth)                          ;; Depth = 1 means that amplitude will range from 0 - 2
+       (* (o/saw freq))))                 ;; This is the timbre and pitch, multiplied by amplitude
 
-  (let [mod-rate   (synth-defaults ::vco)
-        eq-freq    [530 1840 2480]
-        hpf-rlpf   [0 750 0.9]
-        q          0.1
-        synth-unit (synth-unit-layered freq eq-freq q mod-rate)]
+;; TODO - when the pulse is killed at 0 by setting the modulate-freq to 0, then amplitude is set to zero (* 0 depth)
+;;      - when the pulse is killed at 1 by setting the modulate-freq to 0, then amplitude is set to depth (* 1 depth)
 
-    (synth-filter-chain synth-unit amp verb gate hpf-rlpf mod-rate-ctl)))
+;;  (* (o/saw freq) (* depth (+ (o/lf-pulse:kr modulate-freq) 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Rhythm               ;;
@@ -219,6 +222,7 @@
        (o/saw (+ freq (* depth (o/sin-osc:kr rate))))))
 
 ;; #<ScheduledJob id: 1, created-at: Wed 06:17:03s, initial-delay: 1032, desc: "Overtone delayed fn", scheduled? true>
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Person/Sound Mapping ;;
