@@ -15,3 +15,5 @@ borderless-site/borderlessassets/bootstrap-3.2.0-dist
 /resources/audio/Test21
 /resources/audio/eh.aif
 borderless-log.txt
+*.DS_Store
+resources/macintosh/borderless-video*
