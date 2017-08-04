@@ -78,14 +78,16 @@
     (osc/osc-handle server "/TSPS/personWillLeave"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)]
-                  (sound/end-sound! id)))))
+                  (sound/end-sound! id)
+                  (println "Someone left. these people are still here: " (deref borderless.sound/person-sound))))))
 
 (defn person-enter
   []
     (osc/osc-handle server "/TSPS/personEntered"
               (fn [msg]
                 (let [ id (nth (:args msg) 0)]
-                  (sound/start-sound! id)))))
+                  (sound/start-sound! id)
+                  (println "Someone Came in! Full list: " (deref borderless.sound/person-sound))))))
 
 (defn person []
   (sound/controller :timbre (nth  '(409 0 20 0.07673444 0.86617285 0.0 0.0 0.0 0.015625 0.73125 0.128125 0.25625 -0.0015625 0.0020833334 0.0 0.0 0.0 0.0 0.0 0.0) 2) 1)
