@@ -45,9 +45,10 @@
 ;;   [client path & args]
 ;; (osc-send-msg client (apply mk-osc-msg path (osc-type-tag args) args)))
 ;;
-;; THIS WORKS: (osc/osc-send client "/TSPS/personEntered" 4)
-;;             (osc/osc-send client "/TSPS/personUpdated" 4 0 800)
-;;             (osc/osc-send client "/TSPS/personWillLeave" 4)
+;; THIS WORKS: (osc/osc-send client "/TSPS/personEntered" 4 0 100 0.1)
+;;             (osc/osc-send client "/TSPS/personUpdated" 4 0 800 0.1) <-- 4 is :arg 0, 0 is :arg 1, 800 is :arg 2, 0.1 is :arg 3
+;;             (osc/osc-send client "/TSPS/personWillLeave" 4 0 100 0.1)
+
 
 (def PORT 12000)
 
@@ -70,9 +71,9 @@
   []
   (osc/osc-handle server "/TSPS/personUpdated"
               (fn [msg]
-                (let [ id (nth (:args msg) 0)
-                      age (nth (:args msg) 2)]
-                  (sound/controller :timbre id age)))))
+                (let [[id oid age centeroid-x] (msg :args)]
+                  (sound/controller :timbre id age)
+                  (sound/controller :rate id centeroid-x)))))
 
 (defn person-leave []
     (osc/osc-handle server "/TSPS/personWillLeave"
@@ -85,8 +86,8 @@
   []
     (osc/osc-handle server "/TSPS/personEntered"
               (fn [msg]
-                (let [ id (nth (:args msg) 0)]
-                  (sound/start-sound! id)
+                (let [[id oid age centeroid-x] (msg :args)]
+                  (sound/start-sound! id centeroid-x)
                   (println "Someone Came in! Full list: " (deref borderless.sound/person-sound))))))
 
 (defn person []

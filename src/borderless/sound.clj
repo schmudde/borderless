@@ -84,6 +84,8 @@
              ::drone-ae {::pitch 100 ::eq-freq [270 2290 3010] ::hpf-rlpf [600 8000 0.6] ::q 0.1}
              ::drone-eh {::pitch 80  ::eq-freq [530 1840 2480] ::hpf-rlpf [0 750 0.9] ::q 0.1}})
 
+(def drone-names (map #(name (first %)) drones))
+
 (defn synth-unit-layered
   "I create a stack of oscilators, each narrowly EQed on a given Q (frequency) to shape a saw waveform of a certain pitch.
    The end results are sharp Q spikes that resemble vowel formants like eh, aw, ae, etc...
@@ -155,22 +157,22 @@
 
    Example: (o/ctl drone-eh24097 (ctl-names 'drone-eh24097 :amp) 10)"
 
-  (let [inst-name (gensym drone)
-        synth-drone (drones (keyword "borderless.sound" drone))]
-    `(do
-       (o/definst ~inst-name [freq#     (~synth-drone ::pitch)
-                              gate#     (~synth-defaults ::gate)
-                              amp#      (~synth-defaults ::vca)
-                              verb#     (~synth-defaults ::reverb)
-                              mod-rate# (~synth-defaults ::vco)
-                              vib-rate# (~synth-defaults ::vibrato)]
-         (let [eq-freq#    (~synth-drone ::eq-freq)
-               hpf-rlpf#   (~synth-drone ::hpf-rlpf)
-               q#          (~synth-drone ::q)
-               synth-unit# (synth-unit-layered freq# eq-freq# q# mod-rate#)]
+  `(do
+     ~(let [inst-name (symbol drone)
+            synth-drone (drones (keyword "borderless.sound" (str drone)))]
+        `(o/definst ~inst-name [freq#     (~synth-drone ::pitch)
+                                gate#     (~synth-defaults ::gate)
+                                amp#      (~synth-defaults ::vca)
+                                verb#     (~synth-defaults ::reverb)
+                                mod-rate# (~synth-defaults ::vco)
+                                vib-rate# (~synth-defaults ::vibrato)]
+           (let [eq-freq#    (~synth-drone ::eq-freq)
+                 hpf-rlpf#   (~synth-drone ::hpf-rlpf)
+                 q#          (~synth-drone ::q)
+                 synth-unit# (synth-unit-layered freq# eq-freq# q# mod-rate#)]
 
-           (synth-filter-chain synth-unit# amp# verb# gate# hpf-rlpf# mod-rate# vib-rate#)
-           )))))
+             (synth-filter-chain synth-unit# amp# verb# gate# hpf-rlpf# mod-rate# vib-rate#)
+             )))))
 
 (defn sound-maker
   "I make a vowel sound at a given frequency.
@@ -209,10 +211,10 @@
 
 (defn get-sound [pid]
   (if (contains? @person-sound pid)
-    ((get @person-sound pid))))
+    ((first (get @person-sound pid)))))
 
-(defn add-person-sound! [pid sound]
-  (reset! person-sound (assoc @person-sound pid sound))
+(defn add-person-sound! [pid sound x sound-name]
+  (reset! person-sound (assoc @person-sound pid [sound x sound-name]))
   (get-sound pid))
 
 (defn remove-person-sound! [pid]
@@ -220,7 +222,7 @@
     (reset! person-sound (dissoc @person-sound pid))))
 
 (defn instrument-and-symbol [pid]
-  (let [instrument (get @person-sound pid)
+  (let [instrument (first (get @person-sound pid))
         instrument-symbol (inst-name-getter instrument)]
     [instrument instrument-symbol]))
 
@@ -252,43 +254,68 @@
 (defn reset-atom [current-people]
   (when (seq current-people) (end-sound! (ffirst current-people)) (reset-atom (rest current-people))))
 
+(defn first-occurance [collection]
+  (let [nil-finder (loop [n 0 col collection]
+                     (if (nil? (first col))
+                       n
+                       (recur (inc n) (rest col))))]
+    (if (= nil-finder (count collection))
+      nil
+      nil-finder)))
+
+(defn first-non-occurance []
+  (let [playing-sounds (map #(nth (second %) 2) @person-sound)]
+
+    (for [x drone-names
+          :let [containing-tester (some #(= x %) playing-sounds)]
+          :when (nil? containing-tester)]
+      x)))
+
 (defn start-sound!
   "Start the sound and add it to the atom. Reset that atom every xx number of people."
-  [pid]
-  (let [number-of-people (count @person-sound)
+  [pid x]
+  (let [[drone-1 drone-2 drone-3 drone-4] drone-names
+        sound-to-add (first (first-non-occurance))
         reset-val        40]
 
+    ;; TODO: IS THIS WHERE THE HANGING NOTES HAPPEN?
     (when (zero? (rem pid reset-val)) (o/clear) (reset-atom (deref person-sound)))
 
     (println pid " entered")
 
-  (case number-of-people
-    0 (add-person-sound! pid (sound-returner "drone-aw"))
-    1 (add-person-sound! pid (sound-returner "drone-oo"))
-    2 (add-person-sound! pid (sound-returner "drone-ae"))
-    3 (add-person-sound! pid (sound-returner "drone-eh"))
-    "atom full: four people are tracked")))
+    (case sound-to-add
+      "drone-aw" (add-person-sound! pid (sound-returner drone-aw) x drone-1)
+      "drone-oo" (add-person-sound! pid (sound-returner drone-oo) x drone-2)
+      "drone-ae" (add-person-sound! pid (sound-returner drone-ae) x drone-3)
+      "drone-eh" (add-person-sound! pid (sound-returner drone-eh) x drone-4)
+      "atom full: four people are tracked")))
 
 (defmulti controller (fn [parameter pid val] parameter))
 
-(defmethod controller :rate [parameter pid val]
-  (let [[instrument instrument-symbol] (instrument-and-symbol pid)
-        rate-name (ctl-names instrument :vib-rate)]
-    (if (contains? @person-sound pid)
-      (o/ctl (eval (symbol "borderless.sound" (str instrument-symbol))) rate-name val))))
+(defmethod controller :rate [parameter pid x]
+  (let [anchor-id (ffirst @person-sound)
+        [instrument instrument-symbol] (instrument-and-symbol pid)
 
-(defmethod controller :timbre [parameter pid val]
+        rate-name (ctl-names instrument :vib-rate)
+        rate-val  (o/scale-range x 0 1 0.025 6)]
+
+    (if (and (contains? @person-sound pid) (not= pid anchor-id))
+      (do (println "Updated: " pid)
+          (o/ctl (eval (symbol "borderless.sound" (str instrument-symbol))) rate-name rate-val))
+
+      )))
+
+(defmethod controller :timbre [parameter pid age]
   "I take a val between 0 and 1000+, map the value, and send it to the instrument's controller."
-  [pid val]
   (let [[instrument instrument-symbol] (instrument-and-symbol pid)
 
         amp-name (ctl-names instrument :amp)
         verb-name (ctl-names instrument :verb)
         mod-name (ctl-names instrument :mod-rate)
 
-        amp-val   (amplitude-mul val)
-        verb-val  (o/scale-range val 0 1000 1 0.3)
-        kr-val    (o/scale-range val 0 1000 25 4)]
+        amp-val   (amplitude-mul age)
+        verb-val  (o/scale-range age 0 1000 1 0.3)
+        kr-val    (o/scale-range age 0 1000 25 4)]
     (if (contains? @person-sound pid)
       (o/ctl (eval (symbol "borderless.sound" (str instrument-symbol)))
              amp-name amp-val
@@ -296,31 +323,7 @@
              mod-name kr-val))))
 
 
-;; TODO -
-;; Person Entered
-;; - Assign them a number
-;; - Add them to a list
-;; - Create a sound for them
-;; - Associate the sound with the number
-;; - Play Sound
-
-;; Person Leave
-;; - End sound
-;; - Remove number (and therefore sound)
-
-;; Person updated
-;; - Query ID number in list
-;; - Pass information to sound
-;;- Update sound
-
 ;; Transducers are composable algorithmic transformations. They are independent from the context of their input and output sources and specify only the essence of the transformation in terms of an individual element. Because transducers are decoupled from input or output sources, they can be used in many different processes - collections, streams, channels, observables, etc. Transducers compose directly, without awareness of input or creation of intermediate aggregates.
 ;; https://clojure.org/guides/spec
 ;; Generating synthdefs: https://github.com/overtone/overtone/wiki/Comparing-sclang-and-Overtone-synthdefs
 ;; OSC -> Transducer -> keyword list
-
-
-
-;; TODO -
-;; Rhythm
-;; - Basic metronome for the first person
-;; - Second metronome in phase when they're close together, drifting as they move apart
